@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.4';
+    const SCRIPT_VERSION = '1.5';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -700,14 +700,14 @@
                 <span style="color:#ffffff;font-weight:800;font-size:12px;letter-spacing:0.5px;">FCLM Report TLC1+QYY7</span>
                 <span style="color:rgba(255,255,255,0.45);font-size:9px;font-weight:500;letter-spacing:0.3px;">v${SCRIPT_VERSION}</span>
                 <span id="fclm-version-status-btn" style="
-                    font-size:9px;font-weight:600;letter-spacing:0.3px;
-                    padding:2px 8px;border-radius:4px;
+                    font-size:10px;font-weight:700;letter-spacing:0.3px;
+                    padding:3px 12px;border-radius:5px;
                     background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
                     color:rgba(255,255,255,0.5);cursor:default;
                     transition:all 0.2s ease;
-                ">⏳</span>
+                ">\u23F3 Verificando...</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:12px;">
                 <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
                 <div id="fclm-min-btn" title="Minimizar" style="
                     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
@@ -795,7 +795,7 @@
                             linkBtn.target = '_blank';
                             linkBtn.textContent = lnk.name;
                             linkBtn.style.cssText = 'display:block;padding:7px 10px;background:#0f1419;border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e5e7eb;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer;transition:all 0.15s ease;text-align:center;';
-                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='#1a2332'; linkBtn.style.background='linear-gradient(135deg,#059669,#10b981)'; linkBtn.style.borderColor='#10b981'; linkBtn.style.color='#ffffff'; linkBtn.style.transform='translateX(2px)'; });
+                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='linear-gradient(135deg,#059669,#10b981)'; linkBtn.style.borderColor='#10b981'; linkBtn.style.color='#ffffff'; linkBtn.style.transform='translateX(2px)'; });
                             linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='#0f1419'; linkBtn.style.borderColor='rgba(16,185,129,0.2)'; linkBtn.style.color='#e5e7eb'; linkBtn.style.transform='translateX(0)'; });
                             linkPanel.appendChild(linkBtn);
                         });
@@ -843,14 +843,13 @@
         });
 
         const footerRow = document.createElement('div');
-        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;padding-top:3px;position:relative;flex-wrap:wrap;';
+        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
         const footerBtnStyle = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#ffffff;border-radius:6px;padding:5px 16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;white-space:nowrap;';
         function addHover(b){ b.addEventListener('mouseenter',()=>{b.style.background='linear-gradient(135deg,#059669,#10b981)';b.style.borderColor='#10b981';}); b.addEventListener('mouseleave',()=>{b.style.background='linear-gradient(135deg,#1a2332,#232f3e)';b.style.borderColor='#374151';}); }
-        function mkBtn(txt,action,wide){
+        function mkBtn(txt,action){
             const b=document.createElement('button');
             b.textContent=txt;
             b.style.cssText=footerBtnStyle;
-            if(wide) b.style.padding='5px 32px';
             addHover(b);
             if(typeof action==='function') b.addEventListener('click',action);
             else b.addEventListener('click',()=>{window.open(action,'_blank');});
@@ -862,7 +861,6 @@
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
 
-        // Footer wrapper: Descargar Excel a la izquierda, otros botones centrados
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;align-items:center;padding-top:3px;gap:6px;';
 
@@ -874,7 +872,6 @@
         btnDL.addEventListener('click', exportToCSV);
 
         footerWrap.appendChild(btnDL);
-        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
         footerWrap.appendChild(footerRow);
 
         contentWrap.appendChild(footerWrap);
@@ -902,7 +899,6 @@
         document.body.insertBefore(banner, document.body.firstChild);
         document.body.style.paddingTop = (banner.offsetHeight + 4) + 'px';
 
-        // Verificar versión y actualizar badge en title bar
         const versionBtn = document.getElementById('fclm-version-status-btn');
         if (versionBtn) checkVersionStatus(versionBtn);
     }
@@ -934,30 +930,31 @@
     setInterval(()=>{ if(window.location.href!==lastURL){lastURL=window.location.href; initBanner();} },2000);
 
 
-
     // ============= VERSION STATUS BADGE =============
     async function checkVersionStatus(btnEl) {
         try {
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js';
             const response = await fetch(rawUrl, { cache: 'no-store' });
-            if (!response.ok) { btnEl.textContent = '\u26A0\uFE0F Error'; btnEl.style.color = '#fbbf24'; return; }
+            if (!response.ok) { btnEl.textContent = '\u26A0\uFE0F Error al verificar'; btnEl.style.color = '#fbbf24'; return; }
             const text = await response.text();
             const vMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = vMatch ? vMatch[1] : null;
-            if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F'; btnEl.style.color = '#fbbf24'; return; }
+            if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F Sin versi\u00F3n'; btnEl.style.color = '#fbbf24'; return; }
             const cmp = compareVersions(remoteVersion, SCRIPT_VERSION);
             if (cmp > 0) {
-                btnEl.textContent = '\uD83D\uDE80 v' + remoteVersion + ' \u2014 Actualizar';
-                btnEl.style.color = '#ffffff';
-                btnEl.style.background = 'rgba(239,68,68,0.3)';
-                btnEl.style.borderColor = 'rgba(239,68,68,0.6)';
+                btnEl.textContent = '\uD83D\uDD04 Actualizar nueva versi\u00F3n v' + remoteVersion;
+                btnEl.style.color = '#000000';
+                btnEl.style.fontWeight = '800';
+                btnEl.style.background = '#ef4444';
+                btnEl.style.borderColor = '#dc2626';
                 btnEl.style.cursor = 'pointer';
-                btnEl.style.animation = 'fclmGlow 1.5s ease-in-out infinite';
-                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#059669,#10b981)'; btnEl.style.borderColor = '#10b981'; });
-                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(239,68,68,0.3)'; btnEl.style.borderColor = 'rgba(239,68,68,0.6)'; });
+                btnEl.style.padding = '4px 14px';
+                btnEl.style.fontSize = '11px';
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = '#dc2626'; btnEl.style.borderColor = '#b91c1c'; });
+                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = '#ef4444'; btnEl.style.borderColor = '#dc2626'; });
                 btnEl.addEventListener('click', () => { window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js','_blank'); });
             } else {
-                btnEl.textContent = '\u2705 Al d\u00EDa';
+                btnEl.textContent = '\u2705 \u00DAltima Versi\u00F3n Instalada';
                 btnEl.style.color = 'rgba(255,255,255,0.6)';
                 btnEl.style.background = 'rgba(255,255,255,0.08)';
                 btnEl.style.borderColor = 'rgba(255,255,255,0.15)';
@@ -965,9 +962,21 @@
                 btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(255,255,255,0.08)'; btnEl.style.color = 'rgba(255,255,255,0.6)'; btnEl.style.borderColor = 'rgba(255,255,255,0.15)'; });
             }
         } catch (e) {
-            btnEl.textContent = '\u26A0\uFE0F';
+            btnEl.textContent = '\u26A0\uFE0F Sin conexi\u00F3n';
             btnEl.style.color = '#fbbf24';
         }
+    }
+
+    function compareVersions(v1, v2) {
+        const parts1 = v1.split('.').map(Number);
+        const parts2 = v2.split('.').map(Number);
+        for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+            const p1 = parts1[i] || 0;
+            const p2 = parts2[i] || 0;
+            if (p1 > p2) return 1;
+            if (p1 < p2) return -1;
+        }
+        return 0;
     }
 
     // ============= AUTO-UPDATE CHECKER =============
@@ -978,20 +987,12 @@
             const currentVersion = SCRIPT_VERSION;
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js';
             const response = await fetch(rawUrl, { cache: 'no-store' });
-
             if (!response.ok) throw new Error('No se pudo obtener el script');
-
             const text = await response.text();
             const versionMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = versionMatch ? versionMatch[1] : null;
-
-            if (!remoteVersion) {
-                console.log('[FCLM] No se pudo extraer versión remota');
-                return;
-            }
-
-            console.log(`[FCLM] Versión local: ${currentVersion}, Versión remota: ${remoteVersion}`);
-
+            if (!remoteVersion) return;
+            console.log(`[FCLM] Versi\u00F3n local: ${currentVersion}, Versi\u00F3n remota: ${remoteVersion}`);
             if (compareVersions(remoteVersion, currentVersion) > 0) {
                 const notifiedVersion = localStorage.getItem(UPDATE_NOTIFICATION_KEY);
                 if (notifiedVersion !== remoteVersion) {
@@ -1004,19 +1005,6 @@
         }
     }
 
-    function compareVersions(v1, v2) {
-        const parts1 = v1.split('.').map(Number);
-        const parts2 = v2.split('.').map(Number);
-
-        for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-            const p1 = parts1[i] || 0;
-            const p2 = parts2[i] || 0;
-            if (p1 > p2) return 1;
-            if (p1 < p2) return -1;
-        }
-        return 0;
-    }
-
     function showUpdateNotification(newVersion, currentVersion) {
         if (!document.getElementById('fclm-update-styles')) {
             const style = document.createElement('style');
@@ -1024,25 +1012,15 @@
             style.textContent = `.fclm-update-banner{position:fixed;top:10px;right:10px;background:linear-gradient(135deg,#059669 0%,#10b981 100%);border-radius:8px;padding:12px 16px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 20px rgba(16,185,129,0.3);z-index:99999;display:flex;align-items:center;gap:12px;animation:fclmSlideIn 0.3s ease-out forwards;max-width:350px}.fclm-update-banner.hide{animation:fclmSlideOut 0.3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(400px);opacity:0}}.fclm-update-content{flex:1;line-height:1.4}.fclm-update-title{font-weight:600;font-size:13px;margin-bottom:2px}.fclm-update-version{font-size:12px;opacity:0.95}.fclm-update-buttons{display:flex;gap:6px;white-space:nowrap}.fclm-update-btn{padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.2s ease}.fclm-update-btn.update{background:rgba(255,255,255,0.2);color:#fff}.fclm-update-btn.update:hover{background:rgba(255,255,255,0.3);transform:translateY(-1px)}.fclm-update-btn.dismiss{background:transparent;color:rgba(255,255,255,0.8);padding:0;margin-left:auto;font-size:18px;line-height:1}.fclm-update-btn.dismiss:hover{color:#fff}`;
             document.head.appendChild(style);
         }
-
         const banner = document.createElement('div');
         banner.className = 'fclm-update-banner';
-        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">🚀 Actualización disponible</div><div class="fclm-update-version">v${currentVersion} → v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">✕</button></div>`;
-
+        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">\uD83D\uDE80 Actualizaci\u00F3n disponible</div><div class="fclm-update-version">v${currentVersion} \u2192 v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">\u2715</button></div>`;
         document.body.appendChild(banner);
-
-        setTimeout(() => {
-            if (banner.parentNode) {
-                banner.classList.add('hide');
-                setTimeout(() => banner.remove(), 300);
-            }
-        }, 8000);
+        setTimeout(() => { if (banner.parentNode) { banner.classList.add('hide'); setTimeout(() => banner.remove(), 300); } }, 8000);
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(checkForUpdates, 2000);
-        });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(checkForUpdates, 2000); });
     } else {
         setTimeout(checkForUpdates, 2000);
     }
