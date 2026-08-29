@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.6';
+    const SCRIPT_VERSION = '1.7';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -49,8 +49,8 @@
         processSubMenu: {
             'Receive - Total': [
                 { name: 'Each Receive - Total', processId: '01003027' },
-                { name: 'Case Receive', processId: '01003025' },
-                { name: 'Pallet Receive', processId: '01003032' },
+                { name: '\uD83D\uDCE6 Case Receive', processId: '01003025' },
+                { name: '\uD83D\uDCE6 Pallet Receive', processId: '01003032' },
                 { name: 'Prep Recorder - Total', processId: '01003002' }
             ]
         },
@@ -869,6 +869,7 @@
         footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
 
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;align-items:center;padding-top:3px;gap:6px;';
@@ -951,16 +952,17 @@
             if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F Sin versi\u00F3n'; btnEl.style.color = '#fbbf24'; return; }
             const cmp = compareVersions(remoteVersion, SCRIPT_VERSION);
             if (cmp > 0) {
-                btnEl.textContent = '\uD83D\uDD04 Actualizar nueva versi\u00F3n v' + remoteVersion;
-                btnEl.style.color = '#000000';
-                btnEl.style.fontWeight = '800';
-                btnEl.style.background = '#ef4444';
-                btnEl.style.borderColor = '#dc2626';
+                btnEl.textContent = '\u2B06\uFE0F Actualizar v' + remoteVersion;
+                btnEl.style.color = '#ffffff';
+                btnEl.style.fontWeight = '700';
+                btnEl.style.background = 'linear-gradient(135deg, #2563eb, #60a5fa)';
+                btnEl.style.borderColor = '#3b82f6';
                 btnEl.style.cursor = 'pointer';
-                btnEl.style.padding = '4px 14px';
-                btnEl.style.fontSize = '11px';
-                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = '#dc2626'; btnEl.style.borderColor = '#b91c1c'; });
-                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = '#ef4444'; btnEl.style.borderColor = '#dc2626'; });
+                btnEl.style.padding = '3px 14px';
+                btnEl.style.fontSize = '10px';
+                btnEl.style.boxShadow = '0 0 10px rgba(59,130,246,0.3)';
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg, #1d4ed8, #3b82f6)'; btnEl.style.borderColor = '#2563eb'; btnEl.style.boxShadow = '0 0 15px rgba(59,130,246,0.5)'; });
+                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'linear-gradient(135deg, #2563eb, #60a5fa)'; btnEl.style.borderColor = '#3b82f6'; btnEl.style.boxShadow = '0 0 10px rgba(59,130,246,0.3)'; });
                 btnEl.addEventListener('click', () => { window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js','_blank'); });
             } else {
                 btnEl.textContent = '\u2705 \u00DAltima Versi\u00F3n Instalada';
