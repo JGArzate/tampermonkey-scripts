@@ -1,7 +1,8 @@
+
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.6.1
+// @version      2.6
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -914,7 +915,7 @@
 
         const banner = document.createElement('div');
         banner.className = 'fclm-update-banner';
-        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">🚀 Actualización disponible</div><div class="fclm-update-version">v${currentVersion} → v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://github.com/JGArzate/tampermonkey-scripts#readme');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Actualizar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">✕</button></div>`;
+        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">🚀 Actualización disponible</div><div class="fclm-update-version">v${currentVersion} → v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">✕</button></div>`;
 
         document.body.appendChild(banner);
 
