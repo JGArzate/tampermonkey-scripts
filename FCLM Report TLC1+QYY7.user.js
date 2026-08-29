@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.1';
+    const SCRIPT_VERSION = '1.2';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -116,7 +116,7 @@
             .fclm-card:hover {
                 transform: scale(1.08);
                 z-index: 10;
-                box-shadow: 0 6px 24px rgba(0,0,0,0.7), 0 0 15px rgba(0,115,187,0.3);
+                box-shadow: 0 6px 24px rgba(0,0,0,0.7), 0 0 15px rgba(16,185,129,0.3);
             }
             #fclm-banner {
                 transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
@@ -157,7 +157,8 @@
                 transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease, padding 0.3s ease;
                 padding-top: 0; padding-bottom: 0;
             }
-            .fclm-submenu-wrap { position: relative; z-index: 100; }
+            .fclm-submenu-wrap { position: relative; z-index: 1; transition: z-index 0s; }
+            .fclm-submenu-wrap:hover { z-index: 200; }
             .fclm-submenu-wrap:hover .fclm-submenu {
                 max-height: 300px; opacity: 1;
                 padding-top: 4px; padding-bottom: 4px;
@@ -784,7 +785,7 @@
                             linkBtn.target = '_blank';
                             linkBtn.textContent = lnk.name;
                             linkBtn.style.cssText = 'display:block;padding:7px 10px;background:#0f1419;border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e5e7eb;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer;transition:all 0.15s ease;text-align:center;';
-                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='#1a2332'; linkBtn.style.borderColor='rgba(16,185,129,0.5)'; linkBtn.style.color='#10b981'; linkBtn.style.transform='translateX(2px)'; });
+                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='#1a2332'; linkBtn.style.background='linear-gradient(135deg,#059669,#10b981)'; linkBtn.style.borderColor='#10b981'; linkBtn.style.color='#ffffff'; linkBtn.style.transform='translateX(2px)'; });
                             linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='#0f1419'; linkBtn.style.borderColor='rgba(16,185,129,0.2)'; linkBtn.style.color='#e5e7eb'; linkBtn.style.transform='translateX(0)'; });
                             linkPanel.appendChild(linkBtn);
                         });
@@ -834,7 +835,7 @@
         const footerRow = document.createElement('div');
         footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;padding-top:3px;position:relative;flex-wrap:wrap;';
         const footerBtnStyle = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#ffffff;border-radius:6px;padding:5px 16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;white-space:nowrap;';
-        function addHover(b){ b.addEventListener('mouseenter',()=>{b.style.background='linear-gradient(135deg,#0073bb,#38bdf8)';b.style.borderColor='#0073bb';}); b.addEventListener('mouseleave',()=>{b.style.background='linear-gradient(135deg,#1a2332,#232f3e)';b.style.borderColor='#374151';}); }
+        function addHover(b){ b.addEventListener('mouseenter',()=>{b.style.background='linear-gradient(135deg,#059669,#10b981)';b.style.borderColor='#10b981';}); b.addEventListener('mouseleave',()=>{b.style.background='linear-gradient(135deg,#1a2332,#232f3e)';b.style.borderColor='#374151';}); }
         function mkBtn(txt,action,wide){
             const b=document.createElement('button');
             b.textContent=txt;
@@ -846,10 +847,15 @@
             return b;
         }
 
+        const btnDL=mkBtn('\u2B07\uFE0F  Descargar',exportToCSV,true);
+        btnDL.style.background='linear-gradient(135deg,#059669,#10b981)';
+        btnDL.style.borderColor='#10b981';
+        btnDL.addEventListener('mouseenter',()=>{btnDL.style.background='linear-gradient(135deg,#047857,#059669)';btnDL.style.borderColor='#047857';});
+        btnDL.addEventListener('mouseleave',()=>{btnDL.style.background='linear-gradient(135deg,#059669,#10b981)';btnDL.style.borderColor='#10b981';});
+        footerRow.appendChild(btnDL);
         footerRow.appendChild(mkBtn('\uD83D\uDC65 Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('\u2B07\uFE0F  Descargar',exportToCSV,true));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
 
         contentWrap.appendChild(footerRow);
@@ -928,7 +934,7 @@
                 btnEl.style.borderColor = 'rgba(239,68,68,0.6)';
                 btnEl.style.cursor = 'pointer';
                 btnEl.style.animation = 'fclmGlow 1.5s ease-in-out infinite';
-                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#0073bb,#38bdf8)'; btnEl.style.borderColor = '#0073bb'; });
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#059669,#10b981)'; btnEl.style.borderColor = '#10b981'; });
                 btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(239,68,68,0.3)'; btnEl.style.borderColor = 'rgba(239,68,68,0.6)'; });
                 btnEl.addEventListener('click', () => { window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js','_blank'); });
             } else {
@@ -936,7 +942,7 @@
                 btnEl.style.color = 'rgba(255,255,255,0.6)';
                 btnEl.style.background = 'rgba(255,255,255,0.08)';
                 btnEl.style.borderColor = 'rgba(255,255,255,0.15)';
-                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#0073bb,#38bdf8)'; btnEl.style.color = '#ffffff'; btnEl.style.borderColor = '#0073bb'; });
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#059669,#10b981)'; btnEl.style.color = '#ffffff'; btnEl.style.borderColor = '#10b981'; });
                 btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(255,255,255,0.08)'; btnEl.style.color = 'rgba(255,255,255,0.6)'; btnEl.style.borderColor = 'rgba(255,255,255,0.15)'; });
             }
         } catch (e) {
