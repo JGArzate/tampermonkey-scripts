@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.3';
+    const SCRIPT_VERSION = '1.4';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -857,18 +857,27 @@
             return b;
         }
 
-        const btnDL=mkBtn('\u2B07\uFE0F  Descargar',exportToCSV,true);
-        btnDL.style.background='linear-gradient(135deg,#059669,#10b981)';
-        btnDL.style.borderColor='#10b981';
-        btnDL.addEventListener('mouseenter',()=>{btnDL.style.background='linear-gradient(135deg,#047857,#059669)';btnDL.style.borderColor='#047857';});
-        btnDL.addEventListener('mouseleave',()=>{btnDL.style.background='linear-gradient(135deg,#059669,#10b981)';btnDL.style.borderColor='#10b981';});
-        footerRow.appendChild(btnDL);
         footerRow.appendChild(mkBtn('\uD83D\uDC65 Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
 
-        contentWrap.appendChild(footerRow);
+        // Footer wrapper: Descargar Excel a la izquierda, otros botones centrados
+        const footerWrap = document.createElement('div');
+        footerWrap.style.cssText = 'display:flex;align-items:center;padding-top:3px;gap:6px;';
+
+        const btnDL = document.createElement('button');
+        btnDL.textContent = '\u2B07\uFE0F  Descargar Excel';
+        btnDL.style.cssText = 'background:linear-gradient(135deg,#059669,#10b981);border:1px solid #10b981;color:#ffffff;border-radius:6px;padding:5px 24px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;white-space:nowrap;flex-shrink:0;';
+        btnDL.addEventListener('mouseenter',()=>{btnDL.style.background='linear-gradient(135deg,#047857,#059669)';btnDL.style.borderColor='#047857';});
+        btnDL.addEventListener('mouseleave',()=>{btnDL.style.background='linear-gradient(135deg,#059669,#10b981)';btnDL.style.borderColor='#10b981';});
+        btnDL.addEventListener('click', exportToCSV);
+
+        footerWrap.appendChild(btnDL);
+        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
+        footerWrap.appendChild(footerRow);
+
+        contentWrap.appendChild(footerWrap);
         banner.appendChild(contentWrap);
 
         // Minimize button in title bar
