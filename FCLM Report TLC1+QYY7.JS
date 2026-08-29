@@ -1,4 +1,3 @@
-
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
@@ -9,8 +8,8 @@
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1+QYY7.js
-// @downloadURL  https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1+QYY7.js
+// @updateURL    https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS
+// @downloadURL  https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS
 // ==/UserScript==
 
 (function() {
@@ -872,7 +871,7 @@
             }
 
             const currentVersion = '2.6';
-            const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1+QYY7.js';
+            const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS';
             const response = await fetch(rawUrl, { cache: 'no-store' });
 
             if (!response.ok) throw new Error('No se pudo obtener el script');
