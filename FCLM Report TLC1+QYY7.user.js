@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,17 +16,17 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.5';
+    const SCRIPT_VERSION = '1.6';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'INBOUND', processes: ['Receive - Total','Receive Support','IB Problem Solve','IB Total'] },
-            { name: 'OUTBOUND', processes: ['RC Sort - Total','Transfer Out','Transfer Out Dock','DA Bldg to Bldg Transfer TOTAL'] }
+            { name: 'INBOUND', processes: ['Receive - Total','Receive Support','IB Problem Solve'] },
+            { name: 'OUTBOUND', processes: ['RC Sort - Total','Transfer Out','Transfer Out Dock'] }
         ],
-        hiddenProcesses: ['Each Receive - Total','Case Receive','Pallet Receive','Prep Recorder - Total'],
+        hiddenProcesses: ['Each Receive - Total','Case Receive','Pallet Receive','Prep Recorder - Total','IB Total','DA Bldg to Bldg Transfer TOTAL'],
         productivity: {
             name: 'PRODUCTIVIDAD TLC1',
             processes: [
@@ -36,6 +36,7 @@
             ]
         },
         casesBlocks: [],
+        deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Each Receive - Total': '01003027',
             'Receive Support': '01003033',
@@ -67,9 +68,10 @@
     const QYY7_CONFIG = {
         id: 'QYY7', color: '#7b2d8b',
         sections: [
-            { name: 'INBOUND', processes: ['Case Transfer In','Transfer In - Total','RSR - Total','IB Total'] },
-            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','Transfer Out','Transfer Out Dock','DA Bldg to Bldg Transfer TOTAL'] }
+            { name: 'INBOUND', processes: ['Case Transfer In','Transfer In - Total','RSR - Total'] },
+            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','Transfer Out','Transfer Out Dock'] }
         ],
+        hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL'],
         productivity: {
             name: 'PRODUCTIVIDAD QYY7',
             processes: [
@@ -79,6 +81,7 @@
             ]
         },
         casesBlocks: ['Case Transfer In','Transfer Out Pick - Total','Transfer Out'],
+        deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Case Transfer In': '01003035',
             'RSR - Total': '01003012',
@@ -511,7 +514,7 @@
         return card;
     }
 
-    function makeProdCard(m, proc) {
+    function makeProdCard(m, proc, deltaHrs) {
         const card = document.createElement('div');
         card.className = 'fclm-card';
 
@@ -545,6 +548,7 @@
                 <div style="height:3px;background:#1f2937;border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width 0.4s ease;"></div>
                 </div>
+                ${deltaHrs != null ? '<div style="text-align:center;margin-top:2px;"><span style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">\u0394 Hrs</span><div style="color:' + (deltaHrs > 0 ? '#ef4444' : '#10b981') + ';font-weight:700;font-size:9px;">' + fmtDelta(deltaHrs) + ' hrs</div></div>' : ''}
             `;
         } else {
             card.style.cssText = `
@@ -829,7 +833,12 @@
             prodRow.style.cssText = 'display:flex;gap:4px;flex:1;';
             wc.productivity.processes.forEach(proc => {
                 const m = pm.find(x => x.key === 'RC_' + proc.name);
-                prodRow.appendChild(makeProdCard(m, proc));
+                let dHrs = null;
+                if (wc.deltaHrsMap && wc.deltaHrsMap[proc.name]) {
+                    const srcProc = mm.find(x => x.name === wc.deltaHrsMap[proc.name]);
+                    if (srcProc) dHrs = srcProc.deltaToPlanHrs;
+                }
+                prodRow.appendChild(makeProdCard(m, proc, dHrs));
             });
             prodPanel.appendChild(prodRow);
             whBlock.appendChild(prodPanel);
