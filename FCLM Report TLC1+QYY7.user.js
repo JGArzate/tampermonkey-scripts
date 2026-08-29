@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1
+// @version      1.1
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1';
+    const SCRIPT_VERSION = '1.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -83,6 +83,9 @@
         processDropdowns: {},
         processSubMenu: {},
         processLinkMenu: {
+            'Case Transfer In': [
+                { name: '\uD83D\uDDFA\uFE0F Mapa Estiba', url: 'https://stowmap-na.amazon.com/stowmap/loadFCAreaMap.htm?warehouseId=QYY7' }
+            ],
             'Transfer Out Pick - Total': [
                 { name: '\uD83D\uDCE6 Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
                 { name: '\uD83D\uDC64 Elegir Pickers', url: 'https://fc-eligibility-website-iad.aka.amazon.com/#/picker-eligibilities/QYY7' },
@@ -685,9 +688,6 @@
                 <span style="font-size:16px;">📲</span>
                 <span style="color:#ffffff;font-weight:800;font-size:12px;letter-spacing:0.5px;">FCLM Report TLC1+QYY7</span>
                 <span style="color:rgba(255,255,255,0.45);font-size:9px;font-weight:500;letter-spacing:0.3px;">v${SCRIPT_VERSION}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-                <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
                 <span id="fclm-version-status-btn" style="
                     font-size:9px;font-weight:600;letter-spacing:0.3px;
                     padding:2px 8px;border-radius:4px;
@@ -695,6 +695,9 @@
                     color:rgba(255,255,255,0.5);cursor:default;
                     transition:all 0.2s ease;
                 ">⏳</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
                 <div id="fclm-min-btn" title="Minimizar" style="
                     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
                     background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
@@ -829,25 +832,25 @@
         });
 
         const footerRow = document.createElement('div');
-        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:3px;position:relative;flex-wrap:wrap;';
-        const footerBtnStyle = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#ffffff;border-radius:6px;padding:5px 20px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.8px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;';
+        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;padding-top:3px;position:relative;flex-wrap:wrap;';
+        const footerBtnStyle = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#ffffff;border-radius:6px;padding:5px 16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;white-space:nowrap;';
         function addHover(b){ b.addEventListener('mouseenter',()=>{b.style.background='linear-gradient(135deg,#0073bb,#38bdf8)';b.style.borderColor='#0073bb';}); b.addEventListener('mouseleave',()=>{b.style.background='linear-gradient(135deg,#1a2332,#232f3e)';b.style.borderColor='#374151';}); }
+        function mkBtn(txt,action,wide){
+            const b=document.createElement('button');
+            b.textContent=txt;
+            b.style.cssText=footerBtnStyle;
+            if(wide) b.style.padding='5px 32px';
+            addHover(b);
+            if(typeof action==='function') b.addEventListener('click',action);
+            else b.addEventListener('click',()=>{window.open(action,'_blank');});
+            return b;
+        }
 
-        const btnDL = document.createElement('button');
-        btnDL.textContent = '\u2b07  Descargar';
-        btnDL.style.cssText = footerBtnStyle;
-        addHover(btnDL);
-        btnDL.addEventListener('click', exportToCSV);
-        footerRow.appendChild(btnDL);
-
-        const btnRates = document.createElement('button');
-        btnRates.textContent = '\uD83D\uDCCA  Rates';
-        btnRates.style.cssText = footerBtnStyle;
-        addHover(btnRates);
-        btnRates.addEventListener('click', ()=>{ window.open('https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1','_blank'); });
-        footerRow.appendChild(btnRates);
-
-
+        footerRow.appendChild(mkBtn('\uD83D\uDC65 Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
+        footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\u2B07\uFE0F  Descargar',exportToCSV,true));
+        footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
 
         contentWrap.appendChild(footerRow);
         banner.appendChild(contentWrap);
