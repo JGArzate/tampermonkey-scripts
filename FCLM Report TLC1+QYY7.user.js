@@ -1,3 +1,4 @@
+
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
@@ -8,8 +9,8 @@
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS
-// @downloadURL  https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS
+// @updateURL    https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js
+// @downloadURL  https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js
 // ==/UserScript==
 
 (function() {
@@ -866,7 +867,7 @@
     async function checkForUpdates() {
         try {
             const currentVersion = SCRIPT_VERSION;
-            const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS';
+            const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js';
             const response = await fetch(rawUrl, { cache: 'no-store' });
 
             if (!response.ok) throw new Error('No se pudo obtener el script');
@@ -917,7 +918,7 @@
 
         const banner = document.createElement('div');
         banner.className = 'fclm-update-banner';
-        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">🚀 Actualización disponible</div><div class="fclm-update-version">v${currentVersion} → v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">✕</button></div>`;
+        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">🚀 Actualización disponible</div><div class="fclm-update-version">v${currentVersion} → v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">✕</button></div>`;
 
         document.body.appendChild(banner);
 
