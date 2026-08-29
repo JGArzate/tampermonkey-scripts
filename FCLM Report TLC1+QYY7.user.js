@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      7.1.1
+// @version      1
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '7.1.1';
+    const SCRIPT_VERSION = '1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -82,6 +82,13 @@
         },
         processDropdowns: {},
         processSubMenu: {},
+        processLinkMenu: {
+            'Transfer Out Pick - Total': [
+                { name: '\uD83D\uDCE6 Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
+                { name: '\uD83D\uDC64 Elegir Pickers', url: 'https://fc-eligibility-website-iad.aka.amazon.com/#/picker-eligibilities/QYY7' },
+                { name: '\uD83C\uDFAF Pick Console', url: 'https://picking-console.na.picking.aft.a2z.com/fc/QYY7/pick-workforce' }
+            ]
+        },
         externalFetch: [
             { targetProcess: 'Transfer Out Pick - Total', processId: '01003065', warehouseId: 'QYY7', denOnly: false, valueIndex: 'jobs' },
             { targetProcess: 'Transfer Out', processId: '1003021', warehouseId: 'QYY7', denOnly: false, valueIndex: 'jobs' },
@@ -147,7 +154,7 @@
                 transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease, padding 0.3s ease;
                 padding-top: 0; padding-bottom: 0;
             }
-            .fclm-submenu-wrap { position: relative; }
+            .fclm-submenu-wrap { position: relative; z-index: 100; }
             .fclm-submenu-wrap:hover .fclm-submenu {
                 max-height: 300px; opacity: 1;
                 padding-top: 4px; padding-bottom: 4px;
@@ -679,8 +686,15 @@
                 <span style="color:#ffffff;font-weight:800;font-size:12px;letter-spacing:0.5px;">FCLM Report TLC1+QYY7</span>
                 <span style="color:rgba(255,255,255,0.45);font-size:9px;font-weight:500;letter-spacing:0.3px;">v${SCRIPT_VERSION}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;">
+            <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
+                <span id="fclm-version-status-btn" style="
+                    font-size:9px;font-weight:600;letter-spacing:0.3px;
+                    padding:2px 8px;border-radius:4px;
+                    background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+                    color:rgba(255,255,255,0.5);cursor:default;
+                    transition:all 0.2s ease;
+                ">⏳</span>
                 <div id="fclm-min-btn" title="Minimizar" style="
                     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
                     background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
@@ -693,7 +707,7 @@
 
         const contentWrap = document.createElement('div');
         contentWrap.id = 'fclm-content-wrap';
-        contentWrap.style.cssText = 'padding:6px 8px 5px 8px;display:flex;flex-direction:column;gap:6px;overflow:hidden;';
+        contentWrap.style.cssText = 'padding:6px 8px 5px 8px;display:flex;flex-direction:column;gap:6px;overflow:visible;';
 
         [TLC1_CONFIG, QYY7_CONFIG].forEach((wc, wi) => {
             const mm = metricsStore[wc.id].main;
@@ -735,6 +749,8 @@
                     const isCase = wc.casesBlocks.includes(pn);
                     const subMenuCfg = wc.processSubMenu ? wc.processSubMenu[pn] : null;
 
+                    const linkMenuCfg = wc.processLinkMenu ? wc.processLinkMenu[pn] : null;
+
                     if (subMenuCfg) {
                         const wrap = document.createElement('div');
                         wrap.className = 'fclm-submenu-wrap';
@@ -750,6 +766,26 @@
                             subPanel.appendChild(subCard);
                         });
                         wrap.appendChild(subPanel);
+                        secRow.appendChild(wrap);
+                    } else if (linkMenuCfg) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'fclm-submenu-wrap';
+                        wrap.style.cssText = 'position:relative;flex:1;min-width:0;display:flex;flex-direction:column;';
+                        wrap.appendChild(makeProcessCard(m, pn, isCase, wc));
+
+                        const linkPanel = document.createElement('div');
+                        linkPanel.className = 'fclm-submenu';
+                        linkMenuCfg.forEach(lnk => {
+                            const linkBtn = document.createElement('a');
+                            linkBtn.href = lnk.url;
+                            linkBtn.target = '_blank';
+                            linkBtn.textContent = lnk.name;
+                            linkBtn.style.cssText = 'display:block;padding:7px 10px;background:#0f1419;border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e5e7eb;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer;transition:all 0.15s ease;text-align:center;';
+                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='#1a2332'; linkBtn.style.borderColor='rgba(16,185,129,0.5)'; linkBtn.style.color='#10b981'; linkBtn.style.transform='translateX(2px)'; });
+                            linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='#0f1419'; linkBtn.style.borderColor='rgba(16,185,129,0.2)'; linkBtn.style.color='#e5e7eb'; linkBtn.style.transform='translateX(0)'; });
+                            linkPanel.appendChild(linkBtn);
+                        });
+                        wrap.appendChild(linkPanel);
                         secRow.appendChild(wrap);
                     } else {
                         secRow.appendChild(makeProcessCard(m, pn, isCase, wc));
@@ -811,12 +847,7 @@
         btnRates.addEventListener('click', ()=>{ window.open('https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1','_blank'); });
         footerRow.appendChild(btnRates);
 
-        const btnVer = document.createElement('button');
-        btnVer.id = 'fclm-version-status-btn';
-        btnVer.textContent = '\u23F3 Verificando...';
-        btnVer.style.cssText = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#9ca3af;border-radius:6px;padding:5px 14px;cursor:default;font-size:9px;font-weight:600;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;';
-        footerRow.appendChild(btnVer);
-        checkVersionStatus(btnVer);
+
 
         contentWrap.appendChild(footerRow);
         banner.appendChild(contentWrap);
@@ -842,6 +873,10 @@
 
         document.body.insertBefore(banner, document.body.firstChild);
         document.body.style.paddingTop = (banner.offsetHeight + 4) + 'px';
+
+        // Verificar versión y actualizar badge en title bar
+        const versionBtn = document.getElementById('fclm-version-status-btn');
+        if (versionBtn) checkVersionStatus(versionBtn);
     }
 
     function initBanner(){ loadAllMetrics().then(createBanner); }
@@ -877,25 +912,33 @@
         try {
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js';
             const response = await fetch(rawUrl, { cache: 'no-store' });
-            if (!response.ok) { btnEl.textContent = '\u26A0\uFE0F Error al verificar'; btnEl.style.color = '#f97316'; return; }
+            if (!response.ok) { btnEl.textContent = '\u26A0\uFE0F Error'; btnEl.style.color = '#fbbf24'; return; }
             const text = await response.text();
             const vMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = vMatch ? vMatch[1] : null;
-            if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F Sin versión'; btnEl.style.color = '#f97316'; return; }
+            if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F'; btnEl.style.color = '#fbbf24'; return; }
             const cmp = compareVersions(remoteVersion, SCRIPT_VERSION);
             if (cmp > 0) {
-                btnEl.textContent = '\uD83D\uDE80 v' + remoteVersion + ' disponible \u2014 Instalar';
-                btnEl.style.color = '#10b981';
-                btnEl.style.borderColor = 'rgba(16,185,129,0.4)';
+                btnEl.textContent = '\uD83D\uDE80 v' + remoteVersion + ' \u2014 Actualizar';
+                btnEl.style.color = '#ffffff';
+                btnEl.style.background = 'rgba(239,68,68,0.3)';
+                btnEl.style.borderColor = 'rgba(239,68,68,0.6)';
                 btnEl.style.cursor = 'pointer';
+                btnEl.style.animation = 'fclmGlow 1.5s ease-in-out infinite';
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#0073bb,#38bdf8)'; btnEl.style.borderColor = '#0073bb'; });
+                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(239,68,68,0.3)'; btnEl.style.borderColor = 'rgba(239,68,68,0.6)'; });
                 btnEl.addEventListener('click', () => { window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js','_blank'); });
             } else {
-                btnEl.textContent = '\u2705 \u00DAltima versi\u00F3n instalada';
-                btnEl.style.color = '#6b7280';
+                btnEl.textContent = '\u2705 Al d\u00EDa';
+                btnEl.style.color = 'rgba(255,255,255,0.6)';
+                btnEl.style.background = 'rgba(255,255,255,0.08)';
+                btnEl.style.borderColor = 'rgba(255,255,255,0.15)';
+                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = 'linear-gradient(135deg,#0073bb,#38bdf8)'; btnEl.style.color = '#ffffff'; btnEl.style.borderColor = '#0073bb'; });
+                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = 'rgba(255,255,255,0.08)'; btnEl.style.color = 'rgba(255,255,255,0.6)'; btnEl.style.borderColor = 'rgba(255,255,255,0.15)'; });
             }
         } catch (e) {
-            btnEl.textContent = '\u26A0\uFE0F Sin conexi\u00F3n';
-            btnEl.style.color = '#f97316';
+            btnEl.textContent = '\u26A0\uFE0F';
+            btnEl.style.color = '#fbbf24';
         }
     }
 
