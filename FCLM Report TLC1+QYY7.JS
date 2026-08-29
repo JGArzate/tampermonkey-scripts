@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.6.1
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
