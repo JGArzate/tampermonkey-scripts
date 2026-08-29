@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.7.1
+// @version      7.1.1
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.7';
+    const SCRIPT_VERSION = '7.1.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -793,21 +793,31 @@
         });
 
         const footerRow = document.createElement('div');
-        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;padding-top:3px;position:relative;';
-        const btn = document.createElement('button');
-        btn.textContent = '⬇  Descargar Reporte';
-        btn.style.cssText = `
-            background:linear-gradient(135deg,#1a2332,#232f3e);
-            border:1px solid #374151;color:#ffffff;
-            border-radius:6px;padding:5px 36px;
-            cursor:pointer;font-size:10px;font-weight:700;
-            letter-spacing:0.8px;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            transition: all 0.2s ease;
-        `;
-        btn.addEventListener('mouseenter',()=>{ btn.style.background='linear-gradient(135deg,#0073bb,#38bdf8)'; btn.style.borderColor='#0073bb'; });
-        btn.addEventListener('mouseleave',()=>{ btn.style.background='linear-gradient(135deg,#1a2332,#232f3e)'; btn.style.borderColor='#374151'; });
-        btn.addEventListener('click', exportToCSV);
-        footerRow.appendChild(btn);
+        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:3px;position:relative;flex-wrap:wrap;';
+        const footerBtnStyle = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#ffffff;border-radius:6px;padding:5px 20px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.8px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;';
+        function addHover(b){ b.addEventListener('mouseenter',()=>{b.style.background='linear-gradient(135deg,#0073bb,#38bdf8)';b.style.borderColor='#0073bb';}); b.addEventListener('mouseleave',()=>{b.style.background='linear-gradient(135deg,#1a2332,#232f3e)';b.style.borderColor='#374151';}); }
+
+        const btnDL = document.createElement('button');
+        btnDL.textContent = '\u2b07  Descargar';
+        btnDL.style.cssText = footerBtnStyle;
+        addHover(btnDL);
+        btnDL.addEventListener('click', exportToCSV);
+        footerRow.appendChild(btnDL);
+
+        const btnRates = document.createElement('button');
+        btnRates.textContent = '\uD83D\uDCCA  Rates';
+        btnRates.style.cssText = footerBtnStyle;
+        addHover(btnRates);
+        btnRates.addEventListener('click', ()=>{ window.open('https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1','_blank'); });
+        footerRow.appendChild(btnRates);
+
+        const btnVer = document.createElement('button');
+        btnVer.id = 'fclm-version-status-btn';
+        btnVer.textContent = '\u23F3 Verificando...';
+        btnVer.style.cssText = 'background:linear-gradient(135deg,#1a2332,#232f3e);border:1px solid #374151;color:#9ca3af;border-radius:6px;padding:5px 14px;cursor:default;font-size:9px;font-weight:600;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;transition:all 0.2s ease;';
+        footerRow.appendChild(btnVer);
+        checkVersionStatus(btnVer);
+
         contentWrap.appendChild(footerRow);
         banner.appendChild(contentWrap);
 
@@ -860,6 +870,34 @@
     let lastURL=window.location.href;
     setInterval(()=>{ if(window.location.href!==lastURL){lastURL=window.location.href; initBanner();} },2000);
 
+
+
+    // ============= VERSION STATUS BADGE =============
+    async function checkVersionStatus(btnEl) {
+        try {
+            const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js';
+            const response = await fetch(rawUrl, { cache: 'no-store' });
+            if (!response.ok) { btnEl.textContent = '\u26A0\uFE0F Error al verificar'; btnEl.style.color = '#f97316'; return; }
+            const text = await response.text();
+            const vMatch = text.match(/\/\/ @version\s+([\d.]+)/);
+            const remoteVersion = vMatch ? vMatch[1] : null;
+            if (!remoteVersion) { btnEl.textContent = '\u26A0\uFE0F Sin versión'; btnEl.style.color = '#f97316'; return; }
+            const cmp = compareVersions(remoteVersion, SCRIPT_VERSION);
+            if (cmp > 0) {
+                btnEl.textContent = '\uD83D\uDE80 v' + remoteVersion + ' disponible \u2014 Instalar';
+                btnEl.style.color = '#10b981';
+                btnEl.style.borderColor = 'rgba(16,185,129,0.4)';
+                btnEl.style.cursor = 'pointer';
+                btnEl.addEventListener('click', () => { window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js','_blank'); });
+            } else {
+                btnEl.textContent = '\u2705 \u00DAltima versi\u00F3n instalada';
+                btnEl.style.color = '#6b7280';
+            }
+        } catch (e) {
+            btnEl.textContent = '\u26A0\uFE0F Sin conexi\u00F3n';
+            btnEl.style.color = '#f97316';
+        }
+    }
 
     // ============= AUTO-UPDATE CHECKER =============
     const UPDATE_NOTIFICATION_KEY = 'fclm_update_notified_version';
