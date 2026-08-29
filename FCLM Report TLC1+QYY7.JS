@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.7
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -14,6 +14,8 @@
 
 (function() {
     'use strict';
+
+    const SCRIPT_VERSION = '2.7';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -643,8 +645,8 @@
             position:fixed;top:0;left:0;right:0;z-index:99999;
             background:#07070d;
             display:flex;flex-direction:column;
-            box-shadow:0 4px 20px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3);
-            border-bottom:1px solid #1f2937;
+            box-shadow:0 4px 20px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3), 0 4px 15px rgba(16, 185, 129, 0.15), 0 2px 8px rgba(16, 185, 129, 0.1);
+            border-bottom:1px solid rgba(16, 185, 129, 0.3);
             font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         `;
         const origin = getPillOrigin();
@@ -674,6 +676,7 @@
             <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:16px;">📲</span>
                 <span style="color:#ffffff;font-weight:800;font-size:12px;letter-spacing:0.5px;">FCLM Report TLC1+QYY7</span>
+                <span style="color:rgba(255,255,255,0.45);font-size:9px;font-weight:500;letter-spacing:0.3px;">v${SCRIPT_VERSION}</span>
             </div>
             <div style="display:flex;align-items:center;gap:12px;">
                 <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
@@ -862,7 +865,7 @@
 
     async function checkForUpdates() {
         try {
-            const currentVersion = '2.6';
+            const currentVersion = SCRIPT_VERSION;
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS';
             const response = await fetch(rawUrl, { cache: 'no-store' });
 
