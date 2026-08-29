@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.5
+// @version      2.5.1
 // @description  Banner unificado dark para TLC1 y QYY7 con hover expand + Cases/Vol + Den
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
