@@ -858,18 +858,10 @@
 
 
     // ============= AUTO-UPDATE CHECKER =============
-    const UPDATE_CHECK_KEY = 'fclm_last_update_check';
-    const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 horas
     const UPDATE_NOTIFICATION_KEY = 'fclm_update_notified_version';
 
     async function checkForUpdates() {
         try {
-            const lastCheck = localStorage.getItem(UPDATE_CHECK_KEY);
-            if (lastCheck && Date.now() - parseInt(lastCheck) < UPDATE_INTERVAL_MS) {
-                console.log('[FCLM] Última verificación reciente, saltando...');
-                return;
-            }
-
             const currentVersion = '2.6';
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.JS';
             const response = await fetch(rawUrl, { cache: 'no-store' });
@@ -879,8 +871,6 @@
             const text = await response.text();
             const versionMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = versionMatch ? versionMatch[1] : null;
-
-            localStorage.setItem(UPDATE_CHECK_KEY, Date.now().toString());
 
             if (!remoteVersion) {
                 console.log('[FCLM] No se pudo extraer versión remota');
