@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.7';
+    const SCRIPT_VERSION = '1.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -49,8 +49,8 @@
         processSubMenu: {
             'Receive - Total': [
                 { name: 'Each Receive - Total', processId: '01003027' },
-                { name: '\uD83D\uDCE6 Case Receive', processId: '01003025' },
-                { name: '\uD83D\uDCE6 Pallet Receive', processId: '01003032' },
+                { name: 'Case Receive', processId: '01003025' },
+                { name: 'Pallet Receive', processId: '01003032' },
                 { name: 'Prep Recorder - Total', processId: '01003002' }
             ]
         },
@@ -112,7 +112,7 @@
         ]
     };
 
-    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg' };
+    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive' };
     let metricsStore = { TLC1: { main: [], productivity: [] }, QYY7: { main: [], productivity: [] } };
     let isMinimized = false;
 
