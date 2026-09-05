@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.0
-// @description  Cases del PPR + Vol(Units) del functionRollup, Pallets sin Den
+// @version      3.2
+// @description  JPH/Plan con engrane editable en bloques seleccionados TLC1+QYY7
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.0';
+    const SCRIPT_VERSION = '3.2';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -38,6 +38,10 @@
         casesBlocks: ['Case Receive','Pallet Receive'],
         palletBlocks: ['Pallet Receive'],
         noDenBlocks: ['Pallet Receive'],
+        jphConfig: {
+            'RC Sort - Total': { processId: '01003009', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort' },
+            'Transfer Out': { processId: '01003021', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' }
+        },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Each Receive - Total': '01003027',
@@ -92,6 +96,12 @@
             ]
         },
         casesBlocks: ['Case Transfer In','Transfer Out Pick - Total','Transfer Out'],
+        jphConfig: {
+            'Case Transfer In': { processId: '01003035', defaultPlan: 100, key: 'fclm_jph_qyy7_case_transfer' },
+            'RSR - Total': { processId: '01003012', defaultPlan: 100, key: 'fclm_jph_qyy7_rsr' },
+            'Transfer Out Pick - Total': { processId: '01003065', defaultPlan: 60, key: 'fclm_jph_qyy7_to_pick' },
+            'Transfer Out': { processId: '01003021', defaultPlan: 60, key: 'fclm_jph_qyy7_transfer_out' }
+        },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Case Transfer In': '01003035',
@@ -308,6 +318,8 @@
                         if(nums.length>=4){resolve({jobs:nums[1], units:nums[3]});return;}
                     } else if(valueType === 'units'){
                         if(nums.length>=4){resolve(nums[3]);return;}
+                    } else if(valueType === 'jph'){
+                        if(nums.length>=3){resolve(nums[2]);return;}
                     } else {
                         if(nums.length>=2){resolve(nums[1]);return;}
                     }
@@ -359,6 +371,21 @@
             }
         }
 
+        // Apply JPH values
+        const jphCfg = config.jphConfig || {};
+        for(let [procName, cfg] of Object.entries(jphCfg)){
+            const jphVal = extVals[whId + '_jph_' + procName];
+            const m = metrics.find(m => m.name === procName);
+            if(m && jphVal != null){
+                const savedPlan = localStorage.getItem(cfg.key);
+                const plan = savedPlan ? parseFloat(savedPlan) : cfg.defaultPlan;
+                m.jph = Math.round(jphVal * 100) / 100;
+                m.jphPlan = plan;
+                m.jphKey = cfg.key;
+                m.jphDefault = cfg.defaultPlan;
+            }
+        }
+
         if(whId === 'QYY7'){
             const caseTransferIn = metrics.find(m => m.name === 'Case Transfer In');
             const transferInTotal = metrics.find(m => m.name === 'Transfer In - Total');
@@ -385,6 +412,17 @@
             const wh = c.warehouseId;
             promises.push(fetchValueFromFunctionRollup(c.processId, wh, c.valueIndex).then(v=>{
                 extVals[wh + '_' + c.targetProcess] = v;
+            }));
+        }
+
+        // Fetch JPH for configured processes
+        const allJphConfigs = [
+            ...(TLC1_CONFIG.jphConfig ? Object.entries(TLC1_CONFIG.jphConfig).map(([k,v])=>({...v, name:k, wh:'TLC1'})) : []),
+            ...(QYY7_CONFIG.jphConfig ? Object.entries(QYY7_CONFIG.jphConfig).map(([k,v])=>({...v, name:k, wh:'QYY7'})) : [])
+        ];
+        for(let j of allJphConfigs){
+            promises.push(fetchValueFromFunctionRollup(j.processId, j.wh, 'jph').then(v=>{
+                extVals[j.wh + '_jph_' + j.name] = v;
             }));
         }
 
@@ -522,6 +560,7 @@
                         <div style="color:${th.accent};font-weight:600;font-size:9.5px;white-space:nowrap;">${fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
                 </div>
+                ${m.jph != null ? '<div style="display:flex;justify-content:center;align-items:center;gap:4px;margin-top:2px;padding-top:2px;border-top:1px solid #1f2937;"><div style="text-align:center;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH / Plan</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div></div>' : ''}
             `;
         } else {
             card.style.cssText = `
@@ -535,6 +574,26 @@
                 <div style="color:#9ca3af;font-weight:700;font-size:10px;text-align:center;">${dn}${linkBtn}</div>
                 <div style="color:${T.na.accent};font-size:8px;">sin datos</div>
             `;
+        }
+        // Add gear for JPH plan editing
+        if (m && m.jphKey) {
+            const gearJph = document.createElement('span');
+            gearJph.textContent = ' \u2699\uFE0F';
+            gearJph.title = 'Editar JPH Plan';
+            gearJph.style.cssText = 'cursor:pointer;font-size:8px;opacity:0.4;transition:opacity 0.2s;vertical-align:middle;';
+            gearJph.addEventListener('mouseenter', () => { gearJph.style.opacity='1'; });
+            gearJph.addEventListener('mouseleave', () => { gearJph.style.opacity='0.4'; });
+            gearJph.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openPlanEditor({
+                    key: m.jphKey,
+                    title: 'JPH de ' + (DISPLAY_NAMES[pn] || pn),
+                    isSingleTarget: true,
+                    currentTarget: m.jphDefault || m.jphPlan
+                }, [], null);
+            });
+            const titleRow = card.querySelector('div > span:first-child');
+            if (titleRow) titleRow.appendChild(gearJph);
         }
         return card;
     }
@@ -954,7 +1013,8 @@
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://fc-research.amazon.com'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://qi-fcresearch-na.corp.amazon.com/TLC1/results?s='));
+        footerRow.appendChild(mkBtn('\uD83D\uDCF1 Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
 
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;align-items:center;padding-top:3px;gap:6px;';
