@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.3
-// @description  JPH/Plan en misma línea que Rate/Plan y Δ Hrs
+// @version      3.4
+// @description  Label JPH optimizado
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.3';
+    const SCRIPT_VERSION = '3.4';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -559,7 +559,7 @@
                         <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Δ Hrs</div>
                         <div style="color:${th.accent};font-weight:600;font-size:9.5px;white-space:nowrap;">${fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
-                    ${m.jph != null ? '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:1;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH / Plan</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div>' : ''}
+                    ${m.jph != null ? '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:1;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div>' : ''}
                 </div>
             `;
         } else {
