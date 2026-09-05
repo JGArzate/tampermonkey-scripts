@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.8
-// @description  Rates/Plan redondeados + Cases/Vol en Case Receive y Pallet Receive
+// @version      2.9
+// @description  Case/Pallet Receive: Vol toma EACH UNIT del functionRollup
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.8';
+    const SCRIPT_VERSION = '2.9';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -69,8 +69,8 @@
         },
         externalFetch: [
             { targetProcess: 'RC Sort - Total', processId: '01003009', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
-            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' },
-            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' }
+            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobsAndUnits' },
+            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobsAndUnits' }
         ]
     };
 
@@ -302,6 +302,8 @@
                     }
                     if(valueType === 'caseUnit'){
                         if(nums.length>=6){resolve(nums[5]);return;}
+                    } else if(valueType === 'jobsAndUnits'){
+                        if(nums.length>=4){resolve({jobs:nums[1], units:nums[3]});return;}
                     } else {
                         if(nums.length>=2){resolve(nums[1]);return;}
                     }
@@ -334,6 +336,11 @@
                         m.casesVolume = cases;
                         m.originalVolume = m.volume;
                         m.density = (m.volume != null && cases > 0) ? parseFloat((m.volume / cases).toFixed(1)) : null;
+                    } else if(typeof cases === 'object' && cases.jobs != null && cases.units != null){
+                        m.casesVolume = cases.jobs;
+                        m.originalVolume = cases.units;
+                        m.density = (cases.units != null && cases.jobs > 0) ? parseFloat((cases.units / cases.jobs).toFixed(1)) : null;
+                        m.volume = cases.jobs;
                     } else {
                         m.originalVolume = m.volume;
                         m.casesVolume = cases;
