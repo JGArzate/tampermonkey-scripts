@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      1.8
+// @version      2.1
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.8';
+    const SCRIPT_VERSION = '2.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -30,7 +30,7 @@
         productivity: {
             name: 'PRODUCTIVIDAD TLC1',
             processes: [
-                { name: 'Inbound', displayName: 'Inbound' },
+                { name: 'Inbound', displayName: 'Inbound', customTarget: 190, customTargetKey: 'fclm_tlc1_inbound_target' },
                 { name: 'DA', displayName: 'Outbound' },
                 { name: 'THROUGHPUT', displayName: 'Throughput' }
             ]
@@ -68,7 +68,7 @@
     const QYY7_CONFIG = {
         id: 'QYY7', color: '#7b2d8b',
         sections: [
-            { name: 'INBOUND', processes: ['Case Transfer In','Transfer In - Total','RSR - Total'] },
+            { name: 'INBOUND', processes: ['Receive - Total','Case Transfer In','RSR - Total'] },
             { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','Transfer Out','Transfer Out Dock'] }
         ],
         hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL'],
@@ -324,11 +324,11 @@
                         m.densityCases = cases;
                         m.casesVolume = cases;
                         m.originalVolume = m.volume;
-                        m.density = (m.volume != null && cases > 0) ? Math.round(m.volume / cases) : null;
+                        m.density = (m.volume != null && cases > 0) ? parseFloat((m.volume / cases).toFixed(1)) : null;
                     } else {
                         m.originalVolume = m.volume;
                         m.casesVolume = cases;
-                        m.density = (m.volume != null && cases > 0) ? Math.round(m.volume / cases) : null;
+                        m.density = (m.volume != null && cases > 0) ? parseFloat((m.volume / cases).toFixed(1)) : null;
                         m.volume = cases;
                     }
                 }
@@ -342,7 +342,7 @@
                 caseTransferIn.casesVolume = caseTransferIn.volume;
                 caseTransferIn.originalVolume = transferInTotal.volume;
                 caseTransferIn.density = (transferInTotal.volume != null && caseTransferIn.volume != null && caseTransferIn.volume > 0)
-                    ? Math.round(transferInTotal.volume / caseTransferIn.volume)
+                    ? parseFloat((transferInTotal.volume / caseTransferIn.volume).toFixed(1))
                     : null;
             }
         }
@@ -548,8 +548,24 @@
                 <div style="height:3px;background:#1f2937;border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width 0.4s ease;"></div>
                 </div>
-                ${deltaHrs != null ? '<div style="text-align:center;margin-top:2px;"><span style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">\u0394 Hrs</span><div style="color:' + (deltaHrs > 0 ? '#ef4444' : '#10b981') + ';font-weight:700;font-size:9px;">' + fmtDelta(deltaHrs) + ' hrs</div></div>' : ''}
+                ${deltaHrs != null ? '<div style="text-align:center;margin-top:2px;"><span style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">\u0394 Hrs</span><div style="color:' + (deltaHrs >= 0 ? '#10b981' : '#ef4444') + ';font-weight:700;font-size:9px;">' + fmtDelta(deltaHrs) + ' hrs</div></div>' : ''}
             `;
+            if (customTarget != null && proc.customTargetKey) {
+                const editEl = card.querySelector('.fclm-edit-target');
+                if (editEl) {
+                    editEl.addEventListener('mouseenter', () => { editEl.style.opacity = '1'; });
+                    editEl.addEventListener('mouseleave', () => { editEl.style.opacity = '0.6'; });
+                    editEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const current = localStorage.getItem(proc.customTargetKey) || customTarget;
+                        const newVal = prompt('Target Rate para ' + proc.displayName + ':', current);
+                        if (newVal !== null && !isNaN(parseFloat(newVal))) {
+                            localStorage.setItem(proc.customTargetKey, parseFloat(newVal));
+                            initBanner();
+                        }
+                    });
+                }
+            }
         } else {
             card.style.cssText = `
                 background:${T.pna.bg};border:1px solid ${T.pna.border}40;
@@ -838,7 +854,13 @@
                     const srcProc = mm.find(x => x.name === wc.deltaHrsMap[proc.name]);
                     if (srcProc) dHrs = srcProc.deltaToPlanHrs;
                 }
-                prodRow.appendChild(makeProdCard(m, proc, dHrs));
+                // Custom target override (e.g. TLC1 Inbound vs 190)
+                let customTarget = null;
+                if (proc.customTarget) {
+                    const saved = localStorage.getItem(proc.customTargetKey);
+                    customTarget = saved ? parseFloat(saved) : proc.customTarget;
+                }
+                prodRow.appendChild(makeProdCard(m, proc, dHrs, customTarget));
             });
             prodPanel.appendChild(prodRow);
             whBlock.appendChild(prodPanel);
