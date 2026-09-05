@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.5
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.4';
+    const SCRIPT_VERSION = '2.5';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -810,18 +810,21 @@
                         // Add gear icon for customPlanConfig processes
                         const cpc = wc.customPlanConfig ? wc.customPlanConfig[pn] : null;
                         if (cpc) {
-                            const gear = document.createElement('span');
-                            gear.textContent = '\u2699\uFE0F';
-                            gear.title = 'Editar Plan manual';
-                            gear.style.cssText = 'cursor:pointer;font-size:10px;opacity:0.5;transition:opacity 0.2s;position:absolute;left:4px;top:4px;z-index:10;';
-                            gear.addEventListener('mouseenter', () => { gear.style.opacity='1'; });
-                            gear.addEventListener('mouseleave', () => { gear.style.opacity='0.5'; });
-                            gear.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                openPlanEditor(cpc, mm, wc);
-                            });
-                            mainCard.style.position = 'relative';
-                            mainCard.appendChild(gear);
+                            // Inject gear into the card's title text
+                            const titleEl = mainCard.querySelector('div > div:first-child');
+                            if (titleEl) {
+                                const gear = document.createElement('span');
+                                gear.textContent = ' \u2699\uFE0F';
+                                gear.title = 'Editar Plan';
+                                gear.style.cssText = 'cursor:pointer;font-size:9px;opacity:0.5;transition:opacity 0.2s;vertical-align:middle;';
+                                gear.addEventListener('mouseenter', () => { gear.style.opacity='1'; });
+                                gear.addEventListener('mouseleave', () => { gear.style.opacity='0.5'; });
+                                gear.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    openPlanEditor(cpc, mm, wc);
+                                });
+                                titleEl.appendChild(gear);
+                            }
                         }
                         wrap.appendChild(mainCard);
 
