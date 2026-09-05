@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.6
-// @description  Fix: barra % productividad con target custom + descripción dinámica
+// @version      2.8
+// @description  Rates/Plan redondeados + Cases/Vol en Case Receive y Pallet Receive
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.6';
+    const SCRIPT_VERSION = '2.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -35,7 +35,7 @@
                 { name: 'THROUGHPUT', displayName: 'Throughput' }
             ]
         },
-        casesBlocks: [],
+        casesBlocks: ['Case Receive','Pallet Receive'],
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Each Receive - Total': '01003027',
@@ -68,7 +68,9 @@
             ]
         },
         externalFetch: [
-            { targetProcess: 'RC Sort - Total', processId: '01003009', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' }
+            { targetProcess: 'RC Sort - Total', processId: '01003009', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
+            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' },
+            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' }
         ]
     };
 
@@ -494,9 +496,9 @@
                     <div style="text-align:center;flex:${(hasCasesVol || hasDenOnly) ? '1.5' : '2'};">
                         <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / Plan</div>
                         <div style="font-size:9.5px;white-space:nowrap;">
-                            <span style="color:${th.accent};font-weight:700;">${fmt(m.actualRate)}</span>
+                            <span style="color:${th.accent};font-weight:700;">${fmtRound(m.actualRate)}</span>
                             <span style="color:#4b5563;"> / </span>
-                            <span style="color:#9ca3af;font-weight:600;">${fmt(m.planRate)}</span>
+                            <span style="color:#9ca3af;font-weight:600;">${fmtRound(m.planRate)}</span>
                         </div>
                     </div>
                     <div style="width:1px;background:#374151;align-self:stretch;"></div>
@@ -937,6 +939,7 @@
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://fc-research.amazon.com'));
 
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;align-items:center;padding-top:3px;gap:6px;';
@@ -1193,7 +1196,7 @@
         }
         const banner = document.createElement('div');
         banner.className = 'fclm-update-banner';
-        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">\uD83D\uDE80 Actualizaci\u00F3n disponible</div><div class="fclm-update-version">v${currentVersion} \u2192 v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">\u2715</button></div>`;
+        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">FCLM Report TLC1+QYY7</div><div style="font-size:12px;font-weight:600;margin-bottom:2px;">\uD83D\uDE80 Actualizaci\u00F3n disponible</div><div class="fclm-update-version">v${currentVersion} \u2192 v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/FCLM%20Report%20TLC1%2BQYY7.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">\u2715</button></div>`;
         document.body.appendChild(banner);
         setTimeout(() => { if (banner.parentNode) { banner.classList.add('hide'); setTimeout(() => banner.remove(), 300); } }, 8000);
     }
