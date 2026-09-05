@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
+// @version      2.6
+// @description  Fix: barra % productividad con target custom + descripción dinámica
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.5';
+    const SCRIPT_VERSION = '2.6';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -552,14 +552,14 @@
             card.innerHTML = `
                 <div style="color:#e5e7eb;font-weight:700;font-size:10px;text-align:center;margin-bottom:1px;">${customTarget != null ? '<span class="fclm-edit-target" style="cursor:pointer;font-size:9px;margin-right:3px;opacity:0.6;transition:opacity 0.2s;" title="Editar target">\u2699\uFE0F</span>' : ''}${proc.displayName}</div>
                 <div style="text-align:center;">
-                    <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / Plan</div>
+                    <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / ${customTarget != null ? 'Target' : 'Plan'}</div>
                     <div style="font-size:10px;margin-top:1px;">
                         <span style="color:${th.accent};font-weight:700;">${fmtRound(displayRate)}</span>
                         <span style="color:#4b5563;"> / </span>
                         <span style="color:#9ca3af;font-weight:600;">${fmtRound(displayPlan)}</span>
                     </div>
                 </div>
-                <div style="color:${th.accent};font-weight:800;font-size:13px;text-align:center;margin-top:2px;">${m.percentToPlan != null ? Math.round(m.percentToPlan)+'%' : '—'}</div>
+                <div style="color:${th.accent};font-weight:800;font-size:13px;text-align:center;margin-top:2px;">${displayPct != null ? Math.round(displayPct)+'%' : '—'}</div>
                 <div style="height:3px;background:#1f2937;border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width 0.4s ease;"></div>
                 </div>
