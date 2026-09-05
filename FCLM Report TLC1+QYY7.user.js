@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.4
-// @description  Label JPH optimizado
+// @version      3.5
+// @description  RC Sort UPH (EACH Total/UPH) en vez de JPH
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.4';
+    const SCRIPT_VERSION = '3.5';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -39,7 +39,7 @@
         palletBlocks: ['Pallet Receive'],
         noDenBlocks: ['Pallet Receive'],
         jphConfig: {
-            'RC Sort - Total': { processId: '01003009', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort' },
+            'RC Sort - Total': { processId: '01003009', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort', fetchType: 'uph', label: 'UPH' },
             'Transfer Out': { processId: '01003021', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' }
         },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
@@ -320,6 +320,8 @@
                         if(nums.length>=4){resolve(nums[3]);return;}
                     } else if(valueType === 'jph'){
                         if(nums.length>=3){resolve(nums[2]);return;}
+                    } else if(valueType === 'uph'){
+                        if(nums.length>=5){resolve(nums[4]);return;}
                     } else {
                         if(nums.length>=2){resolve(nums[1]);return;}
                     }
@@ -383,6 +385,7 @@
                 m.jphPlan = plan;
                 m.jphKey = cfg.key;
                 m.jphDefault = cfg.defaultPlan;
+                m.jphLabel = cfg.label || 'JPH';
             }
         }
 
@@ -421,7 +424,7 @@
             ...(QYY7_CONFIG.jphConfig ? Object.entries(QYY7_CONFIG.jphConfig).map(([k,v])=>({...v, name:k, wh:'QYY7'})) : [])
         ];
         for(let j of allJphConfigs){
-            promises.push(fetchValueFromFunctionRollup(j.processId, j.wh, 'jph').then(v=>{
+            promises.push(fetchValueFromFunctionRollup(j.processId, j.wh, j.fetchType || 'jph').then(v=>{
                 extVals[j.wh + '_jph_' + j.name] = v;
             }));
         }
@@ -559,7 +562,7 @@
                         <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Δ Hrs</div>
                         <div style="color:${th.accent};font-weight:600;font-size:9.5px;white-space:nowrap;">${fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
-                    ${m.jph != null ? '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:1;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div>' : ''}
+                    ${m.jph != null ? '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:1;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">' + (m.jphLabel || 'JPH') + '</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div>' : ''}
                 </div>
             `;
         } else {
