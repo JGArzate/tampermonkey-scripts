@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.9
-// @description  Case/Pallet Receive: Vol toma EACH UNIT del functionRollup
+// @version      3.0
+// @description  Cases del PPR + Vol(Units) del functionRollup, Pallets sin Den
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.9';
+    const SCRIPT_VERSION = '3.0';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -36,6 +36,8 @@
             ]
         },
         casesBlocks: ['Case Receive','Pallet Receive'],
+        palletBlocks: ['Pallet Receive'],
+        noDenBlocks: ['Pallet Receive'],
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Each Receive - Total': '01003027',
@@ -69,8 +71,8 @@
         },
         externalFetch: [
             { targetProcess: 'RC Sort - Total', processId: '01003009', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
-            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobsAndUnits' },
-            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobsAndUnits' }
+            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
+            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
         ]
     };
 
@@ -304,6 +306,8 @@
                         if(nums.length>=6){resolve(nums[5]);return;}
                     } else if(valueType === 'jobsAndUnits'){
                         if(nums.length>=4){resolve({jobs:nums[1], units:nums[3]});return;}
+                    } else if(valueType === 'units'){
+                        if(nums.length>=4){resolve(nums[3]);return;}
                     } else {
                         if(nums.length>=2){resolve(nums[1]);return;}
                     }
@@ -341,6 +345,10 @@
                         m.originalVolume = cases.units;
                         m.density = (cases.units != null && cases.jobs > 0) ? parseFloat((cases.units / cases.jobs).toFixed(1)) : null;
                         m.volume = cases.jobs;
+                    } else if(c.valueIndex === 'units'){
+                        m.casesVolume = m.volume;
+                        m.originalVolume = cases;
+                        m.density = (cases != null && m.volume > 0) ? parseFloat((cases / m.volume).toFixed(1)) : null;
                     } else {
                         m.originalVolume = m.volume;
                         m.casesVolume = cases;
@@ -436,6 +444,8 @@
         card.className = 'fclm-card';
 
         const hasCasesVol = m && m.originalVolume != null && m.casesVolume != null;
+        const isPallet = whConfig && whConfig.palletBlocks && whConfig.palletBlocks.includes(pn);
+        const noDen = whConfig && whConfig.noDenBlocks && whConfig.noDenBlocks.includes(pn);
         const hasDenOnly = m && m.densityOnly === true;
 
         if (m) {
@@ -457,16 +467,14 @@
 
             let volHTML = '';
             if (hasCasesVol) {
+                const cLabel = isPallet ? 'Pallets / Vol' : 'Cases / Vol';
+                const denBlock = noDen ? '' : '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:0.8;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Den</div><div style="color:'+th.accent+';font-weight:700;font-size:9.5px;white-space:nowrap;">'+(m.density != null ? m.density : '\u2014')+'</div></div>';
                 volHTML = `
                     <div style="text-align:center;flex:1.5;">
-                        <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Cases / Vol</div>
-                        <div style="color:#e5e7eb;font-weight:600;font-size:9.5px;white-space:nowrap;">📦 ${fmt(m.casesVolume)} / ${fmt(m.originalVolume)}</div>
+                        <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">${cLabel}</div>
+                        <div style="color:#e5e7eb;font-weight:600;font-size:9.5px;white-space:nowrap;">\uD83D\uDCE6 ${fmt(m.casesVolume)} / ${fmt(m.originalVolume)}</div>
                     </div>
-                    <div style="width:1px;background:#374151;align-self:stretch;"></div>
-                    <div style="text-align:center;flex:0.8;">
-                        <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Den</div>
-                        <div style="color:${th.accent};font-weight:700;font-size:9.5px;white-space:nowrap;">${m.density != null ? m.density : '—'}</div>
-                    </div>
+                    ${denBlock}
                 `;
             } else if (hasDenOnly) {
                 volHTML = `
