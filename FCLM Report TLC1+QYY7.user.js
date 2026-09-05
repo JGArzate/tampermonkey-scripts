@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.2
-// @description  JPH/Plan con engrane editable en bloques seleccionados TLC1+QYY7
+// @version      3.3
+// @description  JPH/Plan en misma línea que Rate/Plan y Δ Hrs
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.2';
+    const SCRIPT_VERSION = '3.3';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -559,8 +559,8 @@
                         <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Δ Hrs</div>
                         <div style="color:${th.accent};font-weight:600;font-size:9.5px;white-space:nowrap;">${fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
+                    ${m.jph != null ? '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:1;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH / Plan</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div>' : ''}
                 </div>
-                ${m.jph != null ? '<div style="display:flex;justify-content:center;align-items:center;gap:4px;margin-top:2px;padding-top:2px;border-top:1px solid #1f2937;"><div style="text-align:center;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">JPH / Plan</div><div style="font-size:9.5px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#10b981' : '#ef4444') + ';font-weight:700;">' + fmtRound(m.jph) + '</span><span style="color:#4b5563;"> / </span><span style="color:#9ca3af;font-weight:600;">' + fmtRound(m.jphPlan) + '</span></div></div></div>' : ''}
             `;
         } else {
             card.style.cssText = `
