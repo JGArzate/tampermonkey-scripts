@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.3
+// @version      2.4
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.3';
+    const SCRIPT_VERSION = '2.4';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -49,6 +49,7 @@
         customPlanConfig: {
             'Receive - Total': {
                 key: 'fclm_tlc1_receive_plans',
+                title: 'Receive',
                 subProcesses: ['Each Receive - Total', 'Case Receive', 'Pallet Receive', 'Prep Recorder - Total']
             }
         },
@@ -549,7 +550,7 @@
                 box-shadow: 0 1px 3px rgba(0,0,0,0.4);
             `;
             card.innerHTML = `
-                <div style="color:#e5e7eb;font-weight:700;font-size:10px;text-align:center;margin-bottom:1px;">${proc.displayName}</div>
+                <div style="color:#e5e7eb;font-weight:700;font-size:10px;text-align:center;margin-bottom:1px;">${customTarget != null ? '<span class="fclm-edit-target" style="cursor:pointer;font-size:9px;margin-right:3px;opacity:0.6;transition:opacity 0.2s;" title="Editar target">\u2699\uFE0F</span>' : ''}${proc.displayName}</div>
                 <div style="text-align:center;">
                     <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / Plan</div>
                     <div style="font-size:10px;margin-top:1px;">
@@ -571,12 +572,13 @@
                     editEl.addEventListener('mouseleave', () => { editEl.style.opacity = '0.6'; });
                     editEl.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        const current = localStorage.getItem(proc.customTargetKey) || customTarget;
-                        const newVal = prompt('Target Rate para ' + proc.displayName + ':', current);
-                        if (newVal !== null && !isNaN(parseFloat(newVal))) {
-                            localStorage.setItem(proc.customTargetKey, parseFloat(newVal));
-                            initBanner();
-                        }
+                        openPlanEditor({
+                            key: proc.customTargetKey,
+                            title: proc.displayName,
+                            subProcesses: [proc.displayName],
+                            isSingleTarget: true,
+                            currentTarget: customTarget
+                        }, [], null);
                     });
                 }
             }
@@ -811,7 +813,7 @@
                             const gear = document.createElement('span');
                             gear.textContent = '\u2699\uFE0F';
                             gear.title = 'Editar Plan manual';
-                            gear.style.cssText = 'cursor:pointer;font-size:10px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;position:absolute;right:4px;top:4px;z-index:10;';
+                            gear.style.cssText = 'cursor:pointer;font-size:10px;opacity:0.5;transition:opacity 0.2s;position:absolute;left:4px;top:4px;z-index:10;';
                             gear.addEventListener('mouseenter', () => { gear.style.opacity='1'; });
                             gear.addEventListener('mouseleave', () => { gear.style.opacity='0.5'; });
                             gear.addEventListener('click', (e) => {
@@ -1009,6 +1011,27 @@
         const existing = document.getElementById('fclm-plan-editor');
         if (existing) existing.remove();
 
+        // Single target mode (e.g. Inbound productivity)
+        if (cpc.isSingleTarget) {
+            const current = localStorage.getItem(cpc.key) || cpc.currentTarget;
+            const overlay = document.createElement('div');
+            overlay.id = 'fclm-plan-editor';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;';
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:#0f1419;border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:20px;min-width:300px;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,0.5),0 0 20px rgba(16,185,129,0.1);';
+            modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><span style="font-weight:700;font-size:13px;color:#10b981;white-space:nowrap;">\u2699\uFE0F Rates de ' + cpc.title + '</span><span id="fclm-plan-close" style="cursor:pointer;font-size:18px;color:#6b7280;">\u2715</span></div><div style="display:flex;align-items:center;gap:10px;padding:10px 0;"><span style="font-size:12px;color:#9ca3af;">Target Rate:</span><input id="fclm-single-target" type="number" value="' + current + '" style="width:100px;background:#1a2332;border:1px solid #374151;border-radius:4px;color:#e5e7eb;padding:6px 8px;font-size:13px;text-align:center;" /></div><div style="display:flex;gap:8px;margin-top:14px;"><button id="fclm-plan-save" style="flex:1;padding:8px;background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:6px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;">Guardar</button><button id="fclm-plan-cancel" style="flex:1;padding:8px;background:#1a2332;border:1px solid #374151;border-radius:6px;color:#9ca3af;font-weight:600;font-size:12px;cursor:pointer;">Cancelar</button></div>';
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            overlay.querySelector('#fclm-plan-close').addEventListener('click', () => overlay.remove());
+            overlay.querySelector('#fclm-plan-cancel').addEventListener('click', () => overlay.remove());
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+            overlay.querySelector('#fclm-plan-save').addEventListener('click', () => {
+                const val = overlay.querySelector('#fclm-single-target').value;
+                if (val && !isNaN(parseFloat(val))) { localStorage.setItem(cpc.key, parseFloat(val)); overlay.remove(); initBanner(); }
+            });
+            return;
+        }
+
         const saved = JSON.parse(localStorage.getItem(cpc.key) || '{}');
         const isManual = saved.mode === 'manual';
 
@@ -1033,7 +1056,7 @@
         });
 
         modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
-            '<span style="font-weight:700;font-size:14px;color:#10b981;">\u2699\uFE0F Editar Plan</span>' +
+            '<span style="font-weight:700;font-size:13px;color:#10b981;white-space:nowrap;">\u2699\uFE0F Rates de ' + (cpc.title || 'Proceso') + '</span>' +
             '<span id="fclm-plan-close" style="cursor:pointer;font-size:18px;color:#6b7280;transition:color 0.2s;" title="Cerrar">\u2715</span>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px;background:#1a2332;border-radius:6px;">' +
