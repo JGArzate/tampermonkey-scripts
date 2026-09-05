@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Banner unificado dark para TLC1 y QYY7 + Auto-update automático
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.1';
+    const SCRIPT_VERSION = '2.2';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -514,14 +514,21 @@
         return card;
     }
 
-    function makeProdCard(m, proc, deltaHrs) {
+    function makeProdCard(m, proc, deltaHrs, customTarget) {
         const card = document.createElement('div');
         card.className = 'fclm-card';
 
         if (m) {
-            const ps = getProdStatus(m.percentToPlan);
+            let displayRate = m.actualRate;
+            let displayPlan = m.planRate;
+            let displayPct = m.percentToPlan;
+            if (customTarget != null && displayRate != null) {
+                displayPlan = customTarget;
+                displayPct = (displayRate / customTarget) * 100;
+            }
+            const ps = getProdStatus(displayPct);
             const th = T['p'+ps] || T.pna;
-            const pctVal = m.percentToPlan != null ? Math.min(m.percentToPlan, 150) : 0;
+            const pctVal = displayPct != null ? Math.min(displayPct, 150) : 0;
             const barW = Math.min((pctVal / 150) * 100, 100).toFixed(1);
 
             card.style.cssText = `
@@ -539,9 +546,9 @@
                 <div style="text-align:center;">
                     <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / Plan</div>
                     <div style="font-size:10px;margin-top:1px;">
-                        <span style="color:${th.accent};font-weight:700;">${fmtRound(m.actualRate)}</span>
+                        <span style="color:${th.accent};font-weight:700;">${fmtRound(displayRate)}</span>
                         <span style="color:#4b5563;"> / </span>
-                        <span style="color:#9ca3af;font-weight:600;">${fmtRound(m.planRate)}</span>
+                        <span style="color:#9ca3af;font-weight:600;">${fmtRound(displayPlan)}</span>
                     </div>
                 </div>
                 <div style="color:${th.accent};font-weight:800;font-size:13px;text-align:center;margin-top:2px;">${m.percentToPlan != null ? Math.round(m.percentToPlan)+'%' : '—'}</div>
