@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.0
-// @description  v8.0 — Agregado sistema de auto-update desde GitHub
+// @version      8.1
+// @description  v8.1 — Agregado filtro de Turnos (Día/Noche)
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '8.0';
+    const SCRIPT_VERSION = '8.1';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -174,7 +174,7 @@
         #dock-panel-filters {
             padding: 10px 16px;
             border-bottom: 1px solid #f0f0f0;
-            display: none;
+            display: flex;
             flex-direction: column;
             gap: 8px;
         }
@@ -589,7 +589,8 @@
 
                 // === CARRIER por índice ===
                 if (!carrier && colIndexes.carrier >= 0 && idx === colIndexes.carrier) {
-                    if (cellText && cellText !== '-') carrier = cellText;
+                    // Quitar corchetes y su contenido: "MXLAR [ATS_CONTRACTED]" → "MXLAR"
+                    if (cellText && cellText !== '-') carrier = cellText.replace(/\s*\[.*?\]/g, '').trim();
                 }
             });
 
@@ -670,7 +671,25 @@
 
     let allLoads = [];
     let activeStatusFilter = 'all';
+    let activeShiftFilter = 'all'; // 'all', 'day', 'night'
     let remoteVersion = null;
+
+    // ==================== TURNO ====================
+    // Día: 06:30 - 19:00  |  Noche: 19:30 - 06:00 (del siguiente día)
+    function getShift(timeRange) {
+        if (!timeRange || timeRange === '-') return 'unknown';
+        // timeRange formato: "15:00 - 16:00", tomar la hora de INICIO
+        const match = timeRange.match(/(\d{2}):(\d{2})/);
+        if (!match) return 'unknown';
+        const hour = parseInt(match[1], 10);
+        const min = parseInt(match[2], 10);
+        const totalMin = hour * 60 + min;
+        // Día: 06:30 (390 min) a 19:00 (1140 min)
+        // Noche: 19:30 (1170 min) a 06:00 (360 min del siguiente día)
+        if (totalMin >= 390 && totalMin <= 1140) return 'day';
+        // Todo lo demás es noche (19:30-06:00)
+        return 'night';
+    }
 
     // ==================== AUTO-UPDATE SYSTEM ====================
 
@@ -795,6 +814,12 @@
                     <div class="dock-filter-row" id="dock-filter-date-row">
                         <span class="dock-filter-row-label">FECHA:</span>
                     </div>
+                    <div class="dock-filter-row" id="dock-filter-shift-row">
+                        <span class="dock-filter-row-label">TURNO:</span>
+                        <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Todos</button>
+                        <button class="dock-filter-btn shift-btn" data-shift="day">☀️ Día (6:30-19:00)</button>
+                        <button class="dock-filter-btn shift-btn" data-shift="night">🌙 Noche (19:30-6:00)</button>
+                    </div>
                 </div>
                 <div id="dock-panel-stats"></div>
                 <div id="dock-panel-body">
@@ -821,6 +846,16 @@
             if (excelBtn) excelBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 exportToExcel();
+            });
+
+            // Filtros de turno
+            document.querySelectorAll('.shift-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.shift-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    activeShiftFilter = btn.getAttribute('data-shift');
+                    applyFilters();
+                });
             });
 
             makeDraggable(container, document.getElementById('dock-panel-header'), container);
@@ -852,11 +887,10 @@
         const dates = [...new Set(allLoads.map(l => l.day).filter(d => d))];
         dates.sort();
 
-        const filtersContainer = document.getElementById('dock-panel-filters');
         const dateRow = document.getElementById('dock-filter-date-row');
 
         if (dates.length > 1) {
-            filtersContainer.classList.add('visible');
+            dateRow.style.display = 'flex';
             dateRow.innerHTML = '<span class="dock-filter-row-label">FECHA:</span>';
 
             const allBtn = document.createElement('button');
@@ -883,7 +917,7 @@
                 dateRow.appendChild(btn);
             });
         } else {
-            filtersContainer.classList.remove('visible');
+            dateRow.style.display = 'none';
         }
     }
 
@@ -902,6 +936,11 @@
             if (dateFilter !== 'all') {
                 if (load.day !== dateFilter) return false;
             }
+            // Filtro de turno
+            if (activeShiftFilter !== 'all') {
+                const shift = getShift(load.timeRange);
+                if (shift !== activeShiftFilter) return false;
+            }
             return true;
         });
     }
@@ -918,6 +957,10 @@
 
         const dateFiltered = allLoads.filter(load => {
             if (dateFilter !== 'all' && load.day !== dateFilter) return false;
+            // Aplicar filtro de turno también a los stats
+            if (activeShiftFilter !== 'all') {
+                if (getShift(load.timeRange) !== activeShiftFilter) return false;
+            }
             return true;
         });
 
@@ -1156,4 +1199,3 @@
     }
 
 })();
-
