@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.1
-// @description  v8.1 — Agregado filtro de Turnos (Día/Noche)
+// @version      8.2
+// @description  v8.2 — Filtro y conteo por destinos
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '8.1';
+    const SCRIPT_VERSION = '8.2';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -231,14 +231,14 @@
         .dock-stat-chip {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 8px 16px;
-            border-radius: 24px;
-            font-size: 13px;
+            gap: 4px;
+            padding: 5px 10px;
+            border-radius: 16px;
+            font-size: 11px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.2s;
-            border: 2.5px solid transparent;
+            border: 2px solid transparent;
             user-select: none;
         }
         .dock-stat-chip:hover {
@@ -464,6 +464,51 @@
             opacity: 0.5;
             padding: 4px 8px;
         }
+
+        /* ===== DESTINOS ===== */
+        #dock-panel-destinations {
+            padding: 6px 16px;
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #f0f0f0;
+            background: #f8f9fa;
+        }
+        .dock-dest-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1.5px solid #ddd;
+            background: #fff;
+            color: #555;
+            user-select: none;
+        }
+        .dock-dest-chip:hover {
+            border-color: #d97706;
+            color: #d97706;
+            background: #fffbeb;
+        }
+        .dock-dest-chip.active {
+            background: #f59e0b;
+            color: #fff;
+            border-color: #f59e0b;
+            box-shadow: 0 1px 6px rgba(245, 158, 11, 0.3);
+        }
+        .dock-dest-chip .dest-count {
+            background: rgba(0,0,0,0.15);
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-size: 9px;
+        }
+        .dock-dest-chip.active .dest-count {
+            background: rgba(255,255,255,0.3);
+        }
     `;
 
     // Inyectar estilos al iniciar
@@ -536,6 +581,7 @@
             let location = '';
             let pallets = '';
             let node = '';
+            let destination = '';
             let carrier = '';
 
             // Recorrer TODAS las celdas y extraer info por contenido + índice
@@ -558,6 +604,8 @@
                         route = routeMatch[1];
                         const nodeMatch = route.match(/^([A-Z][A-Z0-9]+)->/);
                         if (nodeMatch) node = nodeMatch[1];
+                        const destMatch = route.match(/->([A-Z][A-Z0-9]+)/);
+                        if (destMatch) destination = destMatch[1];
                     }
                 }
 
@@ -621,6 +669,7 @@
                     statusEmoji: statusInfo.emoji,
                     statusClass: statusInfo.class,
                     node: node,
+                    destination: destination || '-',
                     day: day,
                     timeRange: timeRange,
                     window: currentWindow,
@@ -672,6 +721,7 @@
     let allLoads = [];
     let activeStatusFilter = 'all';
     let activeShiftFilter = 'all'; // 'all', 'day', 'night'
+    let activeDestFilter = 'all'; // 'all' o código de destino
     let remoteVersion = null;
 
     // ==================== TURNO ====================
@@ -822,6 +872,7 @@
                     </div>
                 </div>
                 <div id="dock-panel-stats"></div>
+                <div id="dock-panel-destinations"></div>
                 <div id="dock-panel-body">
                     <div class="dock-no-results">Cargando datos...</div>
                 </div>
@@ -941,12 +992,17 @@
                 const shift = getShift(load.timeRange);
                 if (shift !== activeShiftFilter) return false;
             }
+            // Filtro de destino
+            if (activeDestFilter !== 'all') {
+                if (load.destination !== activeDestFilter) return false;
+            }
             return true;
         });
     }
 
     function applyFilters() {
         renderStats();
+        renderDestinations();
         const filtered = getFilteredLoads();
         renderLoads(filtered);
     }
@@ -1001,6 +1057,59 @@
             chip.addEventListener('click', () => {
                 const filter = chip.getAttribute('data-filter');
                 activeStatusFilter = filter;
+                applyFilters();
+            });
+        });
+    }
+
+    function renderDestinations() {
+        const destDiv = document.getElementById('dock-panel-destinations');
+        if (!destDiv) return;
+
+        const dateFilter = getActiveDate();
+
+        // Filtrar por fecha, turno y status (pero NO por destino) para contar destinos
+        const baseFiltered = allLoads.filter(load => {
+            if (dateFilter !== 'all' && load.day !== dateFilter) return false;
+            if (activeShiftFilter !== 'all' && getShift(load.timeRange) !== activeShiftFilter) return false;
+            if (activeStatusFilter !== 'all' && load.statusClass !== activeStatusFilter) return false;
+            return true;
+        });
+
+        // Contar por destino
+        const destCounts = {};
+        baseFiltered.forEach(load => {
+            const d = load.destination;
+            if (d && d !== '-') {
+                destCounts[d] = (destCounts[d] || 0) + 1;
+            }
+        });
+
+        const destinations = Object.keys(destCounts).sort();
+
+        if (destinations.length === 0) {
+            destDiv.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+
+        // Chip "Todos"
+        const allActive = activeDestFilter === 'all' ? 'active' : '';
+        html += `<span class="dock-dest-chip ${allActive}" data-dest="all">📍 Todos <span class="dest-count">${baseFiltered.length}</span></span>`;
+
+        // Chips por destino
+        destinations.forEach(dest => {
+            const isActive = activeDestFilter === dest ? 'active' : '';
+            html += `<span class="dock-dest-chip ${isActive}" data-dest="${dest}">🏭 ${dest} <span class="dest-count">${destCounts[dest]}</span></span>`;
+        });
+
+        destDiv.innerHTML = html;
+
+        // Event listeners
+        destDiv.querySelectorAll('.dock-dest-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                activeDestFilter = chip.getAttribute('data-dest');
                 applyFilters();
             });
         });
