@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.6
-// @description  Fix Excel Vol RC Sort + Case Transfer In submenu RSR subprocesos
+// @version      3.8
+// @description  Fix: link funcRollup en Case Transfer In con submenu
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.6';
+    const SCRIPT_VERSION = '3.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -478,8 +478,10 @@
         const dropdown = whConfig && whConfig.processDropdowns ? whConfig.processDropdowns[pn] : null;
         const subMenu = whConfig && whConfig.processSubMenu ? whConfig.processSubMenu[pn] : null;
         let linkBtn = '';
-        if (subMenu) {
-            linkBtn = `<span style="font-size:9px;margin-left:3px;opacity:0.7;cursor:default;">▼</span>`;
+        if (subMenu && linkURL) {
+            linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:11px;margin-left:3px;opacity:0.6;transition:opacity 0.2s;">\u2197\uFE0F</a><span style="font-size:9px;margin-left:2px;opacity:0.7;cursor:default;">\u25BC</span>`;
+        } else if (subMenu) {
+            linkBtn = `<span style="font-size:9px;margin-left:3px;opacity:0.7;cursor:default;">\u25BC</span>`;
         } else if (dropdown && dropdown.length > 0) {
             const ddId = 'fclm-dd-' + pn.replace(/[^a-zA-Z0-9]/g, '') + '-' + whConfig.id;
             let ddItems = '';
@@ -590,26 +592,7 @@
                 <div style="color:${T.na.accent};font-size:8px;">sin datos</div>
             `;
         }
-        // Add gear for JPH plan editing
-        if (m && m.jphKey) {
-            const gearJph = document.createElement('span');
-            gearJph.textContent = ' \u2699\uFE0F';
-            gearJph.title = 'Editar JPH Plan';
-            gearJph.style.cssText = 'cursor:pointer;font-size:8px;opacity:0.4;transition:opacity 0.2s;vertical-align:middle;';
-            gearJph.addEventListener('mouseenter', () => { gearJph.style.opacity='1'; });
-            gearJph.addEventListener('mouseleave', () => { gearJph.style.opacity='0.4'; });
-            gearJph.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openPlanEditor({
-                    key: m.jphKey,
-                    title: 'JPH de ' + (DISPLAY_NAMES[pn] || pn),
-                    isSingleTarget: true,
-                    currentTarget: m.jphDefault || m.jphPlan
-                }, [], null);
-            });
-            const titleRow = card.querySelector('div > span:first-child');
-            if (titleRow) titleRow.appendChild(gearJph);
-        }
+
         return card;
     }
 
@@ -641,7 +624,7 @@
                 box-shadow: 0 1px 3px rgba(0,0,0,0.4);
             `;
             card.innerHTML = `
-                <div style="color:#e5e7eb;font-weight:700;font-size:10px;text-align:center;margin-bottom:1px;">${customTarget != null ? '<span class="fclm-edit-target" style="cursor:pointer;font-size:9px;margin-right:3px;opacity:0.6;transition:opacity 0.2s;" title="Editar target">\u2699\uFE0F</span>' : ''}${proc.displayName}</div>
+                <div style="color:#e5e7eb;font-weight:700;font-size:10px;text-align:center;margin-bottom:1px;">${proc.displayName}</div>
                 <div style="text-align:center;">
                     <div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Rate / ${customTarget != null ? 'Target' : 'Plan'}</div>
                     <div style="font-size:10px;margin-top:1px;">
@@ -656,23 +639,7 @@
                 </div>
                 ${deltaHrs != null ? '<div style="text-align:center;margin-top:2px;"><span style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">\u0394 Hrs</span><div style="color:' + (deltaHrs >= 0 ? '#10b981' : '#ef4444') + ';font-weight:700;font-size:9px;">' + fmtDelta(deltaHrs) + ' hrs</div></div>' : ''}
             `;
-            if (customTarget != null && proc.customTargetKey) {
-                const editEl = card.querySelector('.fclm-edit-target');
-                if (editEl) {
-                    editEl.addEventListener('mouseenter', () => { editEl.style.opacity = '1'; });
-                    editEl.addEventListener('mouseleave', () => { editEl.style.opacity = '0.6'; });
-                    editEl.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        openPlanEditor({
-                            key: proc.customTargetKey,
-                            title: proc.displayName,
-                            subProcesses: [proc.displayName],
-                            isSingleTarget: true,
-                            currentTarget: customTarget
-                        }, [], null);
-                    });
-                }
-            }
+
         } else {
             card.style.cssText = `
                 background:${T.pna.bg};border:1px solid ${T.pna.border}40;
@@ -833,8 +800,14 @@
                     transition:all 0.2s ease;
                 ">\u23F3 Verificando...</span>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;">
+            <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
+                <div id="fclm-settings-btn" title="Configuración de Planes" style="
+                    width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+                    background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
+                    border-radius:6px;color:#ffffff;font-size:14px;
+                    cursor:pointer;transition:all 0.2s;
+                ">⚙️</div>
                 <div id="fclm-min-btn" title="Minimizar" style="
                     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
                     background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
@@ -899,23 +872,7 @@
                         const mainCard = makeProcessCard(m, pn, isCase, wc);
                         // Add gear icon for customPlanConfig processes
                         const cpc = wc.customPlanConfig ? wc.customPlanConfig[pn] : null;
-                        if (cpc) {
-                            // Inject gear into the card's title text
-                            const titleEl = mainCard.querySelector('div > div:first-child');
-                            if (titleEl) {
-                                const gear = document.createElement('span');
-                                gear.textContent = ' \u2699\uFE0F';
-                                gear.title = 'Editar Plan';
-                                gear.style.cssText = 'cursor:pointer;font-size:9px;opacity:0.5;transition:opacity 0.2s;vertical-align:middle;';
-                                gear.addEventListener('mouseenter', () => { gear.style.opacity='1'; });
-                                gear.addEventListener('mouseleave', () => { gear.style.opacity='0.5'; });
-                                gear.addEventListener('click', (e) => {
-                                    e.stopPropagation();
-                                    openPlanEditor(cpc, mm, wc);
-                                });
-                                titleEl.appendChild(gear);
-                            }
-                        }
+
                         wrap.appendChild(mainCard);
 
                         const subPanel = document.createElement('div');
@@ -1047,6 +1004,14 @@
         banner.appendChild(contentWrap);
 
         // Minimize button in title bar
+        // Settings button
+        const settingsBtn = banner.querySelector('#fclm-settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('mouseenter', () => { settingsBtn.style.background='rgba(255,255,255,0.3)'; });
+            settingsBtn.addEventListener('mouseleave', () => { settingsBtn.style.background='rgba(255,255,255,0.15)'; });
+            settingsBtn.addEventListener('click', () => { openSettingsPanel(); });
+        }
+
         const minBtn = banner.querySelector('#fclm-min-btn');
         if (minBtn) {
             minBtn.addEventListener('mouseenter', () => { minBtn.style.background='rgba(255,255,255,0.3)'; });
@@ -1197,6 +1162,155 @@
             localStorage.setItem(cpc.key, JSON.stringify({ mode, plans }));
             overlay.remove();
             initBanner();
+        });
+    }
+
+
+    // ============= CENTRALIZED SETTINGS PANEL =============
+    function openSettingsPanel() {
+        const existing = document.getElementById('fclm-settings-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'fclm-settings-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100000;display:flex;align-items:center;justify-content:center;';
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:#0f1419;border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:20px;width:480px;max-height:80vh;overflow-y:auto;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,0.5),0 0 20px rgba(16,185,129,0.1);';
+
+        // Build config sections
+        const allConfigs = [
+            { wh: 'TLC1', title: 'PRODUCTIVIDAD TLC1', items: [
+                { label: 'Inbound Target Rate', key: 'fclm_tlc1_inbound_target', defaultVal: 190, type: 'single' }
+            ]},
+            { wh: 'TLC1', title: 'RECEIVE (TLC1)', items: [
+                { label: 'Each Receive - Total', key: 'fclm_tlc1_receive_plans', subKey: 'Each Receive - Total', type: 'subplan' },
+                { label: 'Case Receive', key: 'fclm_tlc1_receive_plans', subKey: 'Case Receive', type: 'subplan' },
+                { label: 'Pallet Receive', key: 'fclm_tlc1_receive_plans', subKey: 'Pallet Receive', type: 'subplan' },
+                { label: 'Prep Recorder - Total', key: 'fclm_tlc1_receive_plans', subKey: 'Prep Recorder - Total', type: 'subplan' }
+            ]},
+            { wh: 'TLC1', title: 'JPH / UPH (TLC1)', items: [
+                { label: 'RC Sort UPH', key: 'fclm_jph_tlc1_rc_sort', defaultVal: 220, type: 'single' },
+                { label: 'Transfer Out JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' }
+            ]},
+            { wh: 'QYY7', title: 'CASE TRANSFER IN (QYY7)', items: [
+                { label: 'Case Stow to Reserve', key: 'fclm_qyy7_case_transfer_plans', subKey: 'Case Stow to Reserve', type: 'subplan', defaultVal: 100 },
+                { label: 'Pallet Stow Reserve', key: 'fclm_qyy7_case_transfer_plans', subKey: 'Pallet Stow Reserve', type: 'subplan', defaultVal: 8 }
+            ]},
+            { wh: 'QYY7', title: 'JPH (QYY7)', items: [
+                { label: 'Case Transfer In', key: 'fclm_jph_qyy7_case_transfer', defaultVal: 100, type: 'single' },
+                { label: 'RSR - Total', key: 'fclm_jph_qyy7_rsr', defaultVal: 100, type: 'single' },
+                { label: 'Transfer Out Pick', key: 'fclm_jph_qyy7_to_pick', defaultVal: 60, type: 'single' },
+                { label: 'Transfer Out', key: 'fclm_jph_qyy7_transfer_out', defaultVal: 60, type: 'single' }
+            ]}
+        ];
+
+        let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-weight:700;font-size:15px;color:#10b981;">\u2699\uFE0F Configuraci\u00F3n de Planes</span><span id="fclm-settings-close" style="cursor:pointer;font-size:20px;color:#6b7280;transition:color 0.2s;">\u2715</span></div>';
+
+        allConfigs.forEach(section => {
+            const whColor = section.wh === 'TLC1' ? '#0073bb' : '#7b2d8b';
+            html += '<div style="margin-bottom:12px;"><div style="color:' + whColor + ';font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:4px 0;border-bottom:1px solid #1f2937;margin-bottom:6px;">' + section.title + '</div>';
+
+            section.items.forEach(item => {
+                let currentVal = '';
+                let isManual = false;
+
+                if (item.type === 'single') {
+                    const saved = localStorage.getItem(item.key);
+                    currentVal = saved || item.defaultVal || '';
+                    isManual = saved != null;
+                } else if (item.type === 'subplan') {
+                    const saved = JSON.parse(localStorage.getItem(item.key) || '{}');
+                    isManual = saved.mode === 'manual';
+                    currentVal = (saved.plans && saved.plans[item.subKey] != null) ? saved.plans[item.subKey] : (item.defaultVal || '');
+                }
+
+                const inputId = 'fclm-cfg-' + item.key.replace(/[^a-zA-Z0-9]/g, '') + '-' + (item.subKey || '').replace(/[^a-zA-Z0-9]/g, '');
+
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #111820;">';
+                html += '<span style="font-size:11px;font-weight:600;flex:1;">' + item.label + '</span>';
+                html += '<div style="display:flex;align-items:center;gap:6px;">';
+                html += '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:' + (isManual ? '#6b7280' : '#10b981') + ';cursor:pointer;"><input type="radio" name="mode-' + inputId + '" value="auto" ' + (!isManual ? 'checked' : '') + ' class="fclm-cfg-mode" data-input="' + inputId + '" style="accent-color:#10b981;width:12px;height:12px;" />Auto</label>';
+                html += '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:' + (isManual ? '#10b981' : '#6b7280') + ';cursor:pointer;"><input type="radio" name="mode-' + inputId + '" value="manual" ' + (isManual ? 'checked' : '') + ' class="fclm-cfg-mode" data-input="' + inputId + '" style="accent-color:#10b981;width:12px;height:12px;" />Manual</label>';
+                html += '<input type="number" id="' + inputId + '" value="' + currentVal + '" data-key="' + item.key + '" data-subkey="' + (item.subKey || '') + '" data-type="' + item.type + '" data-default="' + (item.defaultVal || '') + '" style="width:65px;background:#1a2332;border:1px solid #374151;border-radius:4px;color:#e5e7eb;padding:3px 6px;font-size:11px;text-align:center;' + (!isManual ? 'opacity:0.3;pointer-events:none;' : '') + '" />';
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+        });
+
+        html += '<div style="display:flex;gap:8px;margin-top:14px;"><button id="fclm-settings-save" style="flex:1;padding:8px;background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:6px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s;">Guardar</button><button id="fclm-settings-reset" style="padding:8px 16px;background:#1a2332;border:1px solid #374151;border-radius:6px;color:#f97316;font-weight:600;font-size:12px;cursor:pointer;transition:all 0.2s;">Resetear</button><button id="fclm-settings-cancel" style="flex:1;padding:8px;background:#1a2332;border:1px solid #374151;border-radius:6px;color:#9ca3af;font-weight:600;font-size:12px;cursor:pointer;transition:all 0.2s;">Cancelar</button></div>';
+
+        modal.innerHTML = html;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Mode toggles
+        overlay.querySelectorAll('.fclm-cfg-mode').forEach(r => {
+            r.addEventListener('change', () => {
+                const inputEl = document.getElementById(r.dataset.input);
+                if (inputEl) {
+                    const isM = r.value === 'manual';
+                    inputEl.style.opacity = isM ? '1' : '0.3';
+                    inputEl.style.pointerEvents = isM ? 'auto' : 'none';
+                }
+                r.closest('div').querySelectorAll('label').forEach(l => l.style.color = '#6b7280');
+                r.parentElement.style.color = '#10b981';
+            });
+        });
+
+        // Close
+        overlay.querySelector('#fclm-settings-close').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#fclm-settings-cancel').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+        // Save
+        overlay.querySelector('#fclm-settings-save').addEventListener('click', () => {
+            const inputs = overlay.querySelectorAll('input[type="number"]');
+            const subplanGroups = {};
+
+            inputs.forEach(inp => {
+                const key = inp.dataset.key;
+                const subKey = inp.dataset.subkey;
+                const type = inp.dataset.type;
+                const modeRadio = overlay.querySelector('input[name="mode-' + inp.id + '"]:checked');
+                const isManual = modeRadio && modeRadio.value === 'manual';
+                const val = inp.value.trim();
+
+                if (type === 'single') {
+                    if (isManual && val !== '') {
+                        localStorage.setItem(key, parseFloat(val));
+                    } else {
+                        localStorage.removeItem(key);
+                    }
+                } else if (type === 'subplan') {
+                    if (!subplanGroups[key]) subplanGroups[key] = { mode: 'auto', plans: {} };
+                    if (isManual) {
+                        subplanGroups[key].mode = 'manual';
+                        if (val !== '') subplanGroups[key].plans[subKey] = parseFloat(val);
+                    }
+                }
+            });
+
+            for (let [key, data] of Object.entries(subplanGroups)) {
+                if (data.mode === 'manual') {
+                    localStorage.setItem(key, JSON.stringify(data));
+                } else {
+                    localStorage.removeItem(key);
+                }
+            }
+
+            overlay.remove();
+            initBanner();
+        });
+
+        // Reset
+        overlay.querySelector('#fclm-settings-reset').addEventListener('click', () => {
+            if (confirm('\u00BFResetear todos los planes a valores autom\u00E1ticos?')) {
+                ['fclm_tlc1_inbound_target','fclm_tlc1_receive_plans','fclm_jph_tlc1_rc_sort','fclm_jph_tlc1_transfer_out','fclm_qyy7_case_transfer_plans','fclm_jph_qyy7_case_transfer','fclm_jph_qyy7_rsr','fclm_jph_qyy7_to_pick','fclm_jph_qyy7_transfer_out'].forEach(k => localStorage.removeItem(k));
+                overlay.remove();
+                initBanner();
+            }
         });
     }
 
