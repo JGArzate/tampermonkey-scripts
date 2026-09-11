@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.5
-// @description  RC Sort UPH (EACH Total/UPH) en vez de JPH
+// @version      3.6
+// @description  Fix Excel Vol RC Sort + Case Transfer In submenu RSR subprocesos
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.5';
+    const SCRIPT_VERSION = '3.6';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -86,7 +86,7 @@
             { name: 'INBOUND', processes: ['Receive - Total','Case Transfer In','RSR - Total'] },
             { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','Transfer Out','Transfer Out Dock'] }
         ],
-        hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL'],
+        hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL','Case Stow to Reserve','Pallet Stow Reserve'],
         productivity: {
             name: 'PRODUCTIVIDAD QYY7',
             processes: [
@@ -105,17 +105,29 @@
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Case Transfer In': '01003035',
+            'Case Stow to Reserve': '01002968',
+            'Pallet Stow Reserve': '01002999',
             'RSR - Total': '01003012',
             'Transfer Out Pick - Total': '01003065',
             'Transfer Out': '01003021',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
-        processSubMenu: {},
-        processLinkMenu: {
+        customPlanConfig: {
+            'Case Transfer In': {
+                key: 'fclm_qyy7_case_transfer_plans',
+                title: 'Case Transfer In',
+                subProcesses: ['Case Stow to Reserve', 'Pallet Stow Reserve']
+            }
+        },
+        processSubMenu: {
             'Case Transfer In': [
-                { name: '\uD83D\uDDFA\uFE0F Mapa Estiba', url: 'https://stowmap-na.amazon.com/stowmap/loadFCAreaMap.htm?warehouseId=QYY7' }
-            ],
+                { name: 'Case Stow to Reserve', processId: '01002968' },
+                { name: 'Pallet Stow Reserve', processId: '01002999' }
+            ]
+        },
+        processLinkMenu: {
+
             'Transfer Out Dock': [
                 { name: '\uD83D\uDCE6 Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
                 { name: '\uD83D\uDCFA OB Monitor', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' }
@@ -133,7 +145,7 @@
         ]
     };
 
-    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive' };
+    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive', 'Case Stow to Reserve': '\uD83D\uDCE6 Case Stow', 'Pallet Stow Reserve': '\uD83D\uDCE6 Pallet Stow' };
     let metricsStore = { TLC1: { main: [], productivity: [] }, QYY7: { main: [], productivity: [] } };
     let isMinimized = false;
 
@@ -688,11 +700,10 @@
                 sec.processes.forEach(pn=>{
                     const m=mm.find(x=>x.name===pn), dn=DISPLAY_NAMES[pn]||pn;
                     if(m){
-                        let vol;
-                        if(m.casesVolume != null){
-                            vol = m.casesVolume;
-                        } else {
-                            vol = m.volume;
+                        let vol = m.volume;
+                        let extraCols = '';
+                        if(m.casesVolume != null && m.originalVolume != null){
+                            extraCols = ',' + m.casesVolume + ',' + m.originalVolume;
                         }
                         rows.push([wc.id,sec.name,dn,vol||'',m.actualRate||'',m.planRate||'',m.percentToPlan!=null?m.percentToPlan+'%':'',m.deltaToPlanHrs||''].join(','));
                     }
