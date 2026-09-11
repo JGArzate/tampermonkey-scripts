@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.2
-// @description  v8.2 — Filtro y conteo por destinos
+// @version      8.3
+// @description  v8.3 — Filtros: Status, Turno, Fecha, Destinos con conteo + Posición centrada + Auto-update GitHub
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '8.2';
+    const SCRIPT_VERSION = '8.3';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -705,7 +705,8 @@
             const pos = JSON.parse(localStorage.getItem(STORAGE_KEY));
             if (pos && pos.left !== undefined && pos.top !== undefined) return pos;
         } catch(e) {}
-        return { left: window.innerWidth - 700, top: 10 };
+        // Default: lado derecho, centrado verticalmente
+        return { left: window.innerWidth - 700, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
