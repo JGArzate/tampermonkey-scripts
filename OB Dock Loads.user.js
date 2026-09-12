@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.3
-// @description  v10.3 — Fix hora/día, separador STG visible, grid compacto, turno Ambos. Cambios: extraer hora de celdas individuales, separador STG con borde grueso, grid fijo sin 1fr, turno Ambos
+// @version      10.4
+// @description  v10.4 — Fix timeRange scope, extracción secundaria de hora. Cambios: mover extracción de hora dentro del scope correcto, corregir ReferenceError
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.3';
+    const SCRIPT_VERSION = '10.4';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -689,18 +689,6 @@
                 }
             });
 
-            // Secondary: extract time range from cells if not found from window header
-            if (!timeRange || timeRange === '-') {
-                cells.forEach((cell) => {
-                    const ct = cell.textContent.trim();
-                    // Match "HH:MM - HH:MM" pattern
-                    const timeMatch = ct.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
-                    if (timeMatch && !timeRange) {
-                        timeRange = timeMatch[1] + ' - ' + timeMatch[2];
-                    }
-                });
-            }
-
             if (!status && colIndexes.status >= 0 && cells[colIndexes.status]) {
                 const statusCell = cells[colIndexes.status].textContent.trim().split('\n')[0].replace(/Since.*$/i, '').trim();
                 if (statusCell) status = statusCell;
@@ -715,6 +703,17 @@
                         day = parts[1];
                         timeRange = parts[2];
                     }
+                }
+
+                // Secondary: extract time from individual cells if not found from window header
+                if (!timeRange) {
+                    cells.forEach((cell) => {
+                        const ct = cell.textContent.trim();
+                        const tm = ct.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+                        if (tm && !timeRange) {
+                            timeRange = tm[1] + ' - ' + tm[2];
+                        }
+                    });
                 }
 
                 const statusInfo = getStatusInfo(status);
@@ -1476,7 +1475,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.3...');
+            console.log('[OB Dock] Inicializando panel v10.4...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
