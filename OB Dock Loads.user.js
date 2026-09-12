@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.1
-// @description  v10.1 — STG en 2 columnas (TLC1/QYY7), alinear grid, miniatura color header, refresh STG. Cambios desde v10.0: separar STG en 2 cols numéricas, reducir aire entre columnas, miniatura color oscuro, refresh también actualiza STG
+// @version      10.2
+// @description  v10.2 — Centrar headers, línea separadora STG, reducir aire. Cambios: headers centrados, border-left vertical en STG, grid más compacto
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.1';
+    const SCRIPT_VERSION = '10.2';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -71,7 +71,7 @@
         /* ===== PANEL EXPANDIDO ===== */
         #dock-panel-container {
             position: fixed;
-            width: 680px;
+            width: 640px;
             max-height: 85vh;
             background: #ffffff;
             border: 1px solid #e0e0e0;
@@ -285,12 +285,12 @@
         }
         .dock-table-header {
             display: grid;
-            grid-template-columns: 26px 1fr 90px 65px 50px 32px 38px 38px;
+            grid-template-columns: 24px minmax(80px,1fr) 80px 50px 38px 26px 38px 38px;
             gap: 2px;
             padding: 5px 10px;
             background: #f0f3f5;
             border-bottom: 1px solid #e0e0e0;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 700;
             color: #555;
             text-transform: uppercase;
@@ -298,6 +298,7 @@
             position: sticky;
             top: 0;
             z-index: 2;
+            text-align: center;
         }
         .dock-date-separator {
             display: flex;
@@ -319,7 +320,7 @@
         }
         .dock-load-row {
             display: grid;
-            grid-template-columns: 26px 1fr 90px 65px 50px 32px 38px 38px;
+            grid-template-columns: 24px minmax(80px,1fr) 80px 50px 38px 26px 38px 38px;
             gap: 2px;
             align-items: center;
             padding: 4px 10px;
@@ -337,6 +338,7 @@
         .dock-col-route {
             color: #0073bb;
             font-weight: 600;
+            font-size: 11px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -349,13 +351,16 @@
         }
         .dock-col-carrier {
             color: #7c3aed;
-            font-size: 11px;
+            font-size: 10px;
             text-align: center;
             font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .dock-col-location {
             color: #666;
-            font-size: 11px;
+            font-size: 10px;
             text-align: center;
         }
         .dock-col-pallets {
@@ -742,7 +747,7 @@
                 return { left: safeLeft, top: safeTop };
             }
         } catch(e) {}
-        return { left: window.innerWidth - 700, top: Math.max(10, (window.innerHeight - 500) / 2) };
+        return { left: window.innerWidth - 660, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
@@ -971,7 +976,7 @@
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
 
-        container.style.cssText = 'position:fixed;width:680px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+        container.style.cssText = 'position:fixed;width:640px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
 
         try {
             const pos = loadPosition();
@@ -1270,8 +1275,8 @@
                 <span>CARRIER</span>
                 <span>UBIC.</span>
                 <span>PLTS</span>
-                <span>STG T</span>
-                <span>STG Q</span>
+                <span class="dock-hdr-stg dock-stg-separator">STG<br>TLC1</span>
+                <span class="dock-hdr-stg">STG<br>QYY7</span>
             </div>
         `;
 
@@ -1307,7 +1312,7 @@
                 + '<span class="dock-col-carrier" title="' + load.carrier + '">' + load.carrier + '</span>'
                 + '<span class="dock-col-location">' + load.location + '</span>'
                 + '<span class="dock-col-pallets">' + load.pallets + '</span>'
-                + '<span class="dock-col-stg">' + stgT + '</span>'
+                + '<span class="dock-col-stg dock-stg-separator">' + stgT + '</span>'
                 + '<span class="dock-col-stg">' + stgQ + '</span>'
                 + '</div>';
         });
@@ -1449,7 +1454,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.1...');
+            console.log('[OB Dock] Inicializando panel v10.2...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
