@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.6
-// @description  v10.6 — Extracción robusta content-based para carrier/status/hora/ubicación, logging detallado
+// @version      10.7
+// @description  v10.7 — Soporte headers ES/EN (Estado/Status, Transportista/Carrier, etc), hora de SDT/CPT
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.6';
+    const SCRIPT_VERSION = '10.7';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -591,7 +591,7 @@
         if (!headerRow) return { status: -1, sortRoute: -1, location: -1, vrId: -1, pallets: -1, carrier: -1, offset: 0 };
 
         const headerCells = headerRow.querySelectorAll('th');
-        const indexes = { status: -1, sortRoute: -1, location: -1, vrId: -1, pallets: -1, carrier: -1, offset: 0 };
+        const indexes = { status: -1, sortRoute: -1, location: -1, vrId: -1, pallets: -1, carrier: -1, sdt: -1, cpt: -1, offset: 0 };
 
         const sampleDataRow = doc.querySelector('tr:has(td)');
         if (sampleDataRow) {
@@ -605,12 +605,21 @@
         headerCells.forEach((th, thIdx) => {
             const txt = th.textContent.trim().toLowerCase();
             const tdIdx = thIdx + indexes.offset;
+            // English headers
             if (txt === 'status') indexes.status = tdIdx;
             if (txt === 'sort/route' || txt === 'sort' || txt === 'route') indexes.sortRoute = tdIdx;
             if (txt === 'location') indexes.location = tdIdx;
             if (txt === 'vr id' || txt === 'vrid') indexes.vrId = tdIdx;
             if (txt === 'c') indexes.pallets = tdIdx;
             if (txt === 'carrier') indexes.carrier = tdIdx;
+            // Spanish headers
+            if (txt === 'estado') indexes.status = tdIdx;
+            if (txt === 'clasificar/dirigir' || txt === 'clasificar' || txt === 'ruta') indexes.sortRoute = tdIdx;
+            if (txt === 'ubicación' || txt === 'ubicacion') indexes.location = tdIdx;
+            if (txt === 'transportista') indexes.carrier = tdIdx;
+            // Time columns (SDT = Scheduled Departure Time)
+            if (txt === 'sdt') indexes.sdt = tdIdx;
+            if (txt === 'cpt') indexes.cpt = tdIdx;
         });
 
         // Log all header texts for debugging
@@ -668,6 +677,7 @@
             let destination = '';
             let carrier = '';
             let cellTimeRange = '';
+            let cellDay = '';
 
             cells.forEach((cell, idx) => {
                 const cellText = cell.textContent.trim();
@@ -678,15 +688,15 @@
                     if (knownStatuses.includes(cleanText)) {
                         status = cleanText;
                     }
-                    // Also try partial/case-insensitive match
+                    // Also try partial/case-insensitive match (EN + ES)
                     if (!status) {
                         const lower = cleanText.toLowerCase();
-                        if (lower.includes('completed') || lower.includes('completado')) status = 'Completed';
-                        else if (lower.includes('scheduled') || lower.includes('agendado')) status = 'Scheduled';
-                        else if (lower.includes('loading in progress') || lower.includes('en proceso')) status = 'Loading In Progress';
+                        if (lower.includes('completed') || lower.includes('completado') || lower.includes('finalizado')) status = 'Completed';
+                        else if (lower.includes('scheduled') || lower.includes('agendado') || lower.includes('programado')) status = 'Scheduled';
+                        else if (lower.includes('loading in progress') || lower.includes('carga en progreso') || lower.includes('en proceso') || lower.includes('cargando')) status = 'Loading In Progress';
                         else if (lower === 'loading' || lower === 'cargando') status = 'Loading';
-                        else if (lower.includes('ready for loading') || lower.includes('listo para cargar')) status = 'Ready For Loading';
-                        else if (lower.includes('ready to depart') || lower.includes('para irse')) status = 'Ready to Depart';
+                        else if (lower.includes('ready for loading') || lower.includes('listo para carga') || lower.includes('listo para cargar')) status = 'Ready For Loading';
+                        else if (lower.includes('ready to depart') || lower.includes('listo para salir') || lower.includes('para irse')) status = 'Ready to Depart';
                     }
                 }
 
@@ -735,11 +745,24 @@
                     if (cellText && cellText !== '-') carrier = cellText.replace(/\s*\[.*?\]/g, '').trim();
                 }
 
-                // Content-based time range detection
+                // Content-based time range detection (HH:MM - HH:MM pattern)
                 if (!cellTimeRange) {
                     const timeMatch = cellText.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
                     if (timeMatch) {
                         cellTimeRange = timeMatch[1] + ' - ' + timeMatch[2];
+                    }
+                }
+
+                // Extract time from SDT column (format varies: "Sep 12, 12:00" or "12:00" or "2026-09-12 12:00")
+                if (!cellTimeRange && colIndexes.sdt >= 0 && idx === colIndexes.sdt && cellText) {
+                    const sdtTime = cellText.match(/(\d{1,2}:\d{2})/);
+                    if (sdtTime) {
+                        cellTimeRange = sdtTime[1];
+                    }
+                    // Also try to extract date from SDT
+                    const sdtDate = cellText.match(/(\w{3})\s+(\d{1,2})/);
+                    if (sdtDate) {
+                        cellDay = sdtDate[1] + ' ' + sdtDate[2];
                     }
                 }
 
@@ -772,6 +795,10 @@
                 // Use cellTimeRange found during cell iteration
                 if (!timeRange && cellTimeRange) {
                     timeRange = cellTimeRange;
+                }
+                // Use cellDay found from SDT column
+                if (!day && cellDay) {
+                    day = cellDay;
                 }
 
                 const statusInfo = getStatusInfo(status);
@@ -1543,7 +1570,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.6...');
+            console.log('[OB Dock] Inicializando panel v10.7...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
