@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.4
-// @description  v10.4 — Fix timeRange scope, extracción secundaria de hora. Cambios: mover extracción de hora dentro del scope correcto, corregir ReferenceError
+// @version      10.5
+// @description  v10.5 — Filtros unificados con encabezados (Fecha, Turno, Estatus, Destinos) centrados
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.4';
+    const SCRIPT_VERSION = '10.5';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -187,29 +187,34 @@
 
         /* ===== FILTROS ===== */
         #dock-panel-filters {
-            padding: 10px 16px;
+            padding: 8px 12px;
             border-bottom: 1px solid #f0f0f0;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
-        #dock-panel-filters.visible {
+        .dock-filter-section {
             display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .dock-filter-section-label {
+            font-size: 9px;
+            font-weight: 700;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
         .dock-filter-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 5px;
             align-items: center;
+            justify-content: center;
         }
         .dock-filter-row-label {
-            font-size: 10px;
-            font-weight: 700;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-right: 4px;
-            min-width: 50px;
+            display: none;
         }
         .dock-filter-btn {
             padding: 4px 10px;
@@ -236,12 +241,19 @@
 
         /* ===== STATS/CONTADOR ===== */
         #dock-panel-stats {
-            padding: 10px 16px;
+            padding: 6px 12px;
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
             border-bottom: 1px solid #f0f0f0;
             background: #fafbfc;
+        }
+        #dock-panel-stats .dock-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
         }
         .dock-stat-chip {
             display: inline-flex;
@@ -518,12 +530,19 @@
 
         /* ===== DESTINOS ===== */
         #dock-panel-destinations {
-            padding: 6px 16px;
+            padding: 6px 12px;
             display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
             border-bottom: 1px solid #f0f0f0;
             background: #f8f9fa;
+        }
+        #dock-panel-destinations .dock-dest-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
         }
         .dock-dest-chip {
             display: inline-flex;
@@ -1020,14 +1039,17 @@
                     </div>
                 </div>
                 <div id="dock-panel-filters">
-                    <div class="dock-filter-row" id="dock-filter-date-row">
-                        <span class="dock-filter-row-label">FECHA:</span>
+                    <div class="dock-filter-section" id="dock-filter-date-section">
+                        <span class="dock-filter-section-label">📅 Fecha</span>
+                        <div class="dock-filter-row" id="dock-filter-date-row"></div>
                     </div>
-                    <div class="dock-filter-row" id="dock-filter-shift-row">
-                        <span class="dock-filter-row-label">TURNO:</span>
-                        <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Ambos</button>
-                        <button class="dock-filter-btn shift-btn" data-shift="day">☀️ Día (6:30-19:00)</button>
-                        <button class="dock-filter-btn shift-btn" data-shift="night">🌙 Noche (19:30-6:00)</button>
+                    <div class="dock-filter-section">
+                        <span class="dock-filter-section-label">🕐 Turno</span>
+                        <div class="dock-filter-row" id="dock-filter-shift-row">
+                            <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Ambos</button>
+                            <button class="dock-filter-btn shift-btn" data-shift="day">☀️ Día (6:30-19:00)</button>
+                            <button class="dock-filter-btn shift-btn" data-shift="night">🌙 Noche (19:30-6:00)</button>
+                        </div>
                     </div>
                 </div>
                 <div id="dock-panel-stats"></div>
@@ -1143,11 +1165,14 @@
             dateRow.appendChild(btn);
         });
 
-        // Si solo hay una fecha, ocultar el filtro
-        if (dates.length <= 1) {
-            dateRow.style.display = 'none';
-        } else {
-            dateRow.style.display = 'flex';
+        // Si solo hay una fecha, ocultar la sección completa
+        const dateSection = document.getElementById('dock-filter-date-section');
+        if (dateSection) {
+            if (dates.length <= 1) {
+                dateSection.style.display = 'none';
+            } else {
+                dateSection.style.display = 'flex';
+            }
         }
     }
 
@@ -1223,7 +1248,7 @@
             html += `<span class="dock-stat-chip stat-unknown ${isActive}" data-filter="stat-unknown">❓ Otro: ${counts['stat-unknown'].count}</span>`;
         }
 
-        stats.innerHTML = html;
+        stats.innerHTML = '<span class="dock-filter-section-label">📊 Estatus</span><div class="dock-filter-row">' + html + '</div>';
 
         stats.querySelectorAll('.dock-stat-chip').forEach(chip => {
             chip.addEventListener('click', () => {
@@ -1270,7 +1295,7 @@
             html += `<span class="dock-dest-chip ${isActive}" data-dest="${dest}">🏭 ${dest} <span class="dest-count">${destCounts[dest]}</span></span>`;
         });
 
-        destDiv.innerHTML = html;
+        destDiv.innerHTML = '<span class="dock-filter-section-label">📍 Destinos</span><div class="dock-dest-row">' + html + '</div>';
 
         destDiv.querySelectorAll('.dock-dest-chip').forEach(chip => {
             chip.addEventListener('click', () => {
@@ -1475,7 +1500,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.4...');
+            console.log('[OB Dock] Inicializando panel v10.5...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
