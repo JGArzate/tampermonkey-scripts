@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.3
-// @description  v8.3 — Filtros: Status, Turno, Fecha, Destinos con conteo + Posición centrada + Auto-update GitHub
+// @version      8.4
+// @description  v8.4 — Filtros: Status, Turno, Fecha, Destinos con conteo + Posición centrada + Auto-update GitHub
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -714,7 +714,14 @@
     function loadPosition() {
         try {
             const pos = JSON.parse(localStorage.getItem(STORAGE_KEY));
-            if (pos && pos.left !== undefined && pos.top !== undefined) return pos;
+            if (pos && pos.left !== undefined && pos.top !== undefined) {
+                // Validar que la posición esté dentro del viewport
+                const maxLeft = window.innerWidth - 100;
+                const maxTop = window.innerHeight - 100;
+                const safeLeft = Math.max(0, Math.min(pos.left, maxLeft));
+                const safeTop = Math.max(0, Math.min(pos.top, maxTop));
+                return { left: safeLeft, top: safeTop };
+            }
         } catch(e) {}
         // Default: lado derecho, centrado verticalmente
         return { left: window.innerWidth - 700, top: Math.max(10, (window.innerHeight - 500) / 2) };
@@ -860,6 +867,7 @@
             const pos = loadPosition();
             container.style.left = pos.left + 'px';
             container.style.top = pos.top + 'px';
+            console.log('[OB Dock] Posición del panel:', pos, 'Viewport:', window.innerWidth, 'x', window.innerHeight);
 
             container.innerHTML = `
                 <div id="dock-mini-icon">🚛</div>
@@ -1323,12 +1331,24 @@
     }
 
     // ==================== INIT ====================
-    if (document.readyState === 'complete') {
-        createPanel();
+    function init() {
+        // Esperar a que exista document.body antes de crear el panel
+        if (document.body) {
+            console.log('[OB Dock] Inicializando panel...');
+            createPanel();
+        } else {
+            // Si body no existe todavía, esperar
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(createPanel, 1000);
+            });
+        }
+    }
+
+    // Ejecutar init — si document-idle ya cargó, body existe; si no, esperar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(init, 1000));
     } else {
-        window.addEventListener('load', () => {
-            setTimeout(createPanel, 1500);
-        });
+        setTimeout(init, 500);
     }
 
 })();
