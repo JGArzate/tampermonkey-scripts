@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.2
-// @description  v10.2 — Centrar headers, línea separadora STG, reducir aire. Cambios: headers centrados, border-left vertical en STG, grid más compacto
+// @version      10.3
+// @description  v10.3 — Fix hora/día, separador STG visible, grid compacto, turno Ambos. Cambios: extraer hora de celdas individuales, separador STG con borde grueso, grid fijo sin 1fr, turno Ambos
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.2';
+    const SCRIPT_VERSION = '10.3';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -71,7 +71,7 @@
         /* ===== PANEL EXPANDIDO ===== */
         #dock-panel-container {
             position: fixed;
-            width: 640px;
+            width: 560px;
             max-height: 85vh;
             background: #ffffff;
             border: 1px solid #e0e0e0;
@@ -285,7 +285,7 @@
         }
         .dock-table-header {
             display: grid;
-            grid-template-columns: 24px minmax(80px,1fr) 80px 50px 38px 26px 38px 38px;
+            grid-template-columns: 24px 200px 80px 52px 40px 28px 40px 40px;
             gap: 2px;
             padding: 5px 10px;
             background: #f0f3f5;
@@ -320,7 +320,7 @@
         }
         .dock-load-row {
             display: grid;
-            grid-template-columns: 24px minmax(80px,1fr) 80px 50px 38px 26px 38px 38px;
+            grid-template-columns: 24px 200px 80px 52px 40px 28px 40px 40px;
             gap: 2px;
             align-items: center;
             padding: 4px 10px;
@@ -605,16 +605,26 @@
 
         const allRows = doc.querySelectorAll('tr');
         let currentWindow = '';
+        let currentDay = '';
 
         allRows.forEach(row => {
             const rowText = row.textContent.trim();
 
-            const windowMatch = rowText.match(/Scheduled Departure Window:\s*(\d{2}-\w{3}-\d{2})\s+(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+            // Try multiple formats for Scheduled Departure Window
+            const windowMatch = rowText.match(/Scheduled Departure Window[:\s]*([\d]{1,2}-\w{3}-\d{2})\s+(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
             if (windowMatch) {
                 const dateStr = windowMatch[1];
                 const startTime = windowMatch[2];
                 const endTime = windowMatch[3];
                 currentWindow = `${dateStr} ${startTime} - ${endTime}`;
+                currentDay = dateStr;
+                return;
+            }
+            // Also match just date without time: "Scheduled Departure Window: 12-Sep-26"
+            const dateOnlyMatch = rowText.match(/Scheduled Departure Window[:\s]*([\d]{1,2}-\w{3}-\d{2})/);
+            if (dateOnlyMatch && !windowMatch) {
+                currentDay = dateOnlyMatch[1];
+                currentWindow = currentDay;
                 return;
             }
 
@@ -679,16 +689,28 @@
                 }
             });
 
+            // Secondary: extract time range from cells if not found from window header
+            if (!timeRange || timeRange === '-') {
+                cells.forEach((cell) => {
+                    const ct = cell.textContent.trim();
+                    // Match "HH:MM - HH:MM" pattern
+                    const timeMatch = ct.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+                    if (timeMatch && !timeRange) {
+                        timeRange = timeMatch[1] + ' - ' + timeMatch[2];
+                    }
+                });
+            }
+
             if (!status && colIndexes.status >= 0 && cells[colIndexes.status]) {
                 const statusCell = cells[colIndexes.status].textContent.trim().split('\n')[0].replace(/Since.*$/i, '').trim();
                 if (statusCell) status = statusCell;
             }
 
             if (route && vrId) {
-                let day = '';
+                let day = currentDay || '';
                 let timeRange = '';
                 if (currentWindow) {
-                    const parts = currentWindow.match(/(\d{2}-\w{3}-\d{2})\s+(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})/);
+                    const parts = currentWindow.match(/(\d{1,2}-\w{3}-\d{2})\s+(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})/);
                     if (parts) {
                         day = parts[1];
                         timeRange = parts[2];
@@ -717,7 +739,7 @@
             }
         });
 
-        console.log(`[OB Dock] Extracted ${loads.length} loads from page`);
+        console.log(`[OB Dock] Extracted ${loads.length} loads from page. Days found: ${[...new Set(loads.map(l=>l.day).filter(d=>d))].join(', ')}. Times: ${[...new Set(loads.map(l=>l.timeRange).filter(t=>t))].join(', ')}`);
         return loads;
     }
 
@@ -747,7 +769,7 @@
                 return { left: safeLeft, top: safeTop };
             }
         } catch(e) {}
-        return { left: window.innerWidth - 660, top: Math.max(10, (window.innerHeight - 500) / 2) };
+        return { left: window.innerWidth - 580, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
@@ -976,7 +998,7 @@
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
 
-        container.style.cssText = 'position:fixed;width:640px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+        container.style.cssText = 'position:fixed;width:560px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
 
         try {
             const pos = loadPosition();
@@ -1004,7 +1026,7 @@
                     </div>
                     <div class="dock-filter-row" id="dock-filter-shift-row">
                         <span class="dock-filter-row-label">TURNO:</span>
-                        <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Todos</button>
+                        <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Ambos</button>
                         <button class="dock-filter-btn shift-btn" data-shift="day">☀️ Día (6:30-19:00)</button>
                         <button class="dock-filter-btn shift-btn" data-shift="night">🌙 Noche (19:30-6:00)</button>
                     </div>
@@ -1454,7 +1476,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.2...');
+            console.log('[OB Dock] Inicializando panel v10.3...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
