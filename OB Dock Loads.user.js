@@ -1300,18 +1300,16 @@
                 stgQ = '<a href="' + qUrl + '" target="_blank" class="' + qClass + '" title="STG-' + dest + ' en QYY7">' + qLabel + '</a>';
             }
 
-            html += \`
-                <div class="dock-load-row">
-                    <span class="dock-col-status" title="\${load.statusLabel} (\${load.rawStatus})">\${load.statusEmoji}</span>
-                    <span class="dock-col-route" title="\${load.label}">\${load.label}</span>
-                    <span class="dock-col-time">\${load.timeRange}</span>
-                    <span class="dock-col-carrier" title="\${load.carrier}">\${load.carrier}</span>
-                    <span class="dock-col-location">\${load.location}</span>
-                    <span class="dock-col-pallets">\${load.pallets}</span>
-                    <span class="dock-col-stg">\${stgT}</span>
-                    <span class="dock-col-stg">\${stgQ}</span>
-                </div>
-            \`;
+            html += '<div class="dock-load-row">'
+                + '<span class="dock-col-status" title="' + load.statusLabel + ' (' + load.rawStatus + ')">' + load.statusEmoji + '</span>'
+                + '<span class="dock-col-route" title="' + load.label + '">' + load.label + '</span>'
+                + '<span class="dock-col-time">' + load.timeRange + '</span>'
+                + '<span class="dock-col-carrier" title="' + load.carrier + '">' + load.carrier + '</span>'
+                + '<span class="dock-col-location">' + load.location + '</span>'
+                + '<span class="dock-col-pallets">' + load.pallets + '</span>'
+                + '<span class="dock-col-stg">' + stgT + '</span>'
+                + '<span class="dock-col-stg">' + stgQ + '</span>'
+                + '</div>';
         });
 
         body.innerHTML = html;
