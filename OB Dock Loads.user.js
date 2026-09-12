@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.5
-// @description  v8.5 — Fix miniatura + quitar minimizar inferior
+// @version      9.4
+// @description  v9.4 — Solo página actual, sin iframe multi-nodo
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '8.5';
+    const SCRIPT_VERSION = '9.4';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -35,7 +35,6 @@
         if (!rawStatus) return { label: 'Desconocido', emoji: '❓', class: 'stat-unknown' };
         const key = rawStatus.toLowerCase().trim();
         if (STATUS_MAP[key]) return STATUS_MAP[key];
-        // Buscar coincidencia parcial
         for (const [mapKey, mapVal] of Object.entries(STATUS_MAP)) {
             if (key.includes(mapKey) || mapKey.includes(key)) return mapVal;
         }
@@ -43,13 +42,11 @@
     }
 
     // ==================== ESTILOS ====================
-    // Función alternativa: crear <style> tag directamente para evitar CSP unsafe-inline
     function injectStyles(css) {
         let injected = false;
         try {
             const style = document.createElement('style');
             style.textContent = css;
-            // Intentar con nonce si existe
             const nonce = document.querySelector('style[nonce]')?.nonce || window.__webpack_nonce__ || window.__CSP_NONCE__;
             if (nonce) style.nonce = nonce;
             (document.head || document.documentElement).appendChild(style);
@@ -58,7 +55,6 @@
         } catch (e) {
             console.error('[OB Dock] Error inyectando estilos:', e);
         }
-        // Fallback: segundo intento sin nonce
         if (!injected) {
             try {
                 const style2 = document.createElement('style');
@@ -75,7 +71,7 @@
         /* ===== PANEL EXPANDIDO ===== */
         #dock-panel-container {
             position: fixed;
-            width: 680px;
+            width: 720px;
             max-height: 85vh;
             background: #ffffff;
             border: 1px solid #e0e0e0;
@@ -238,7 +234,7 @@
             box-shadow: 0 2px 8px rgba(91, 33, 182, 0.3);
         }
 
-        /* ===== STATS/CONTADOR - CLICKEABLE COMO FILTROS ===== */
+        /* ===== STATS/CONTADOR ===== */
         #dock-panel-stats {
             padding: 10px 16px;
             display: flex;
@@ -289,7 +285,7 @@
         }
         .dock-table-header {
             display: grid;
-            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
+            grid-template-columns: 30px 42px 1fr 100px 80px 70px 45px;
             gap: 4px;
             padding: 6px 12px;
             background: #f0f3f5;
@@ -323,7 +319,7 @@
         }
         .dock-load-row {
             display: grid;
-            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
+            grid-template-columns: 30px 42px 1fr 100px 80px 70px 45px;
             gap: 4px;
             align-items: center;
             padding: 5px 12px;
@@ -337,6 +333,16 @@
         .dock-col-status {
             text-align: center;
             font-size: 13px;
+        }
+        .dock-col-node {
+            font-size: 9px;
+            font-weight: 700;
+            text-align: center;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: #eef2ff;
+            color: #4338ca;
+            line-height: 1.4;
         }
         .dock-col-route {
             color: #0073bb;
@@ -374,6 +380,25 @@
             color: #888;
             padding: 30px 20px;
             font-style: italic;
+        }
+
+        /* ===== CUSTOM RANGE INPUTS ===== */
+        .dock-range-input {
+            padding: 3px 6px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: inherit;
+            color: #444;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .dock-range-input:focus {
+            border-color: #5b21b6;
+        }
+        .dock-range-arrow {
+            font-size: 11px;
+            color: #888;
         }
 
         /* ===== UPDATE SYSTEM ===== */
@@ -530,22 +555,19 @@
         }
     `;
 
-    // Inyectar estilos al iniciar
     injectStyles(stylesCss);
 
     // ==================== FUNCIONES DE EXTRACCIÓN ====================
 
-    function detectColumnIndexes() {
-        // Buscar la fila de encabezados de la tabla y contar el offset
-        const headerRow = document.querySelector('thead tr') || document.querySelector('tr:has(th)');
+    function detectColumnIndexes(doc) {
+        doc = doc || document;
+        const headerRow = doc.querySelector('thead tr') || doc.querySelector('tr:has(th)');
         if (!headerRow) return { status: -1, sortRoute: -1, location: -1, vrId: -1, pallets: -1, carrier: -1, offset: 0 };
 
         const headerCells = headerRow.querySelectorAll('th');
         const indexes = { status: -1, sortRoute: -1, location: -1, vrId: -1, pallets: -1, carrier: -1, offset: 0 };
 
-        // Calcular offset: las filas de datos (td) pueden tener un checkbox extra al inicio
-        // Comparar cantidad de th vs td en una fila de datos
-        const sampleDataRow = document.querySelector('tr:has(td)');
+        const sampleDataRow = doc.querySelector('tr:has(td)');
         if (sampleDataRow) {
             const tdCount = sampleDataRow.querySelectorAll('td').length;
             const thCount = headerCells.length;
@@ -556,7 +578,6 @@
 
         headerCells.forEach((th, thIdx) => {
             const txt = th.textContent.trim().toLowerCase();
-            // El índice real en td = thIdx + offset
             const tdIdx = thIdx + indexes.offset;
             if (txt === 'status') indexes.status = tdIdx;
             if (txt === 'sort/route' || txt === 'sort' || txt === 'route') indexes.sortRoute = tdIdx;
@@ -570,18 +591,17 @@
         return indexes;
     }
 
-    function extractLoads() {
+    function extractLoadsFromDoc(doc) {
+        doc = doc || document;
         const loads = [];
-        const colIndexes = detectColumnIndexes();
+        const colIndexes = detectColumnIndexes(doc);
 
-        // Buscar todas las filas de la tabla principal
-        const allRows = document.querySelectorAll('tr');
+        const allRows = doc.querySelectorAll('tr');
         let currentWindow = '';
 
         allRows.forEach(row => {
             const rowText = row.textContent.trim();
 
-            // Detectar encabezado de ventana de salida
             const windowMatch = rowText.match(/Scheduled Departure Window:\s*(\d{2}-\w{3}-\d{2})\s+(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
             if (windowMatch) {
                 const dateStr = windowMatch[1];
@@ -603,11 +623,9 @@
             let destination = '';
             let carrier = '';
 
-            // Recorrer TODAS las celdas y extraer info por contenido + índice
             cells.forEach((cell, idx) => {
                 const cellText = cell.textContent.trim();
 
-                // === STATUS: buscar por contenido conocido en cualquier celda ===
                 if (!status) {
                     const cleanText = cellText.split('\n')[0].trim().replace(/Since.*$/i, '').trim();
                     const knownStatuses = ['Completed', 'Scheduled', 'Loading In Progress', 'Loading', 'Ready For Loading', 'Ready to Depart', 'Cancelled', 'Not Started', 'In Progress', 'In progress'];
@@ -616,7 +634,6 @@
                     }
                 }
 
-                // === ROUTE: patrón NODO->DESTINO (quitar WT) ===
                 if (!route) {
                     const routeMatch = cellText.match(/(?:WT\s*)?([A-Z][A-Z0-9]{2,4}->[\w]+)/);
                     if (routeMatch) {
@@ -628,7 +645,6 @@
                     }
                 }
 
-                // === VR ID: patrón alfanumérico ===
                 if (!vrId) {
                     const vrMatch = cellText.match(/\b(\d{2,3}[A-Z0-9]{4,10})\b/);
                     if (vrMatch && cellText.length < 25 && !cellText.includes('->')) {
@@ -636,12 +652,10 @@
                     }
                 }
 
-                // === LOCATION por índice ===
                 if (!location && colIndexes.location >= 0 && idx === colIndexes.location) {
                     if (cellText && cellText !== '-') location = cellText;
                 }
 
-                // === LOCATION por patrón DD + número (dock door) ===
                 if (!location) {
                     const locMatch = cellText.match(/\b(DD\d{1,4})\b/i);
                     if (locMatch) {
@@ -649,19 +663,15 @@
                     }
                 }
 
-                // === PALLETS (C) por índice ===
                 if (!pallets && colIndexes.pallets >= 0 && idx === colIndexes.pallets) {
                     if (cellText && cellText !== '-') pallets = cellText;
                 }
 
-                // === CARRIER por índice ===
                 if (!carrier && colIndexes.carrier >= 0 && idx === colIndexes.carrier) {
-                    // Quitar corchetes y su contenido: "MXLAR [ATS_CONTRACTED]" → "MXLAR"
                     if (cellText && cellText !== '-') carrier = cellText.replace(/\s*\[.*?\]/g, '').trim();
                 }
             });
 
-            // Si detectamos por índice de status pero no matcheó arriba, intentar de nuevo
             if (!status && colIndexes.status >= 0 && cells[colIndexes.status]) {
                 const statusCell = cells[colIndexes.status].textContent.trim().split('\n')[0].replace(/Since.*$/i, '').trim();
                 if (statusCell) status = statusCell;
@@ -700,7 +710,7 @@
             }
         });
 
-        console.log('[OB Dock] Extracted loads:', loads.length, loads.slice(0, 3));
+        console.log(`[OB Dock] Extracted ${loads.length} loads from page`);
         return loads;
     }
 
@@ -723,7 +733,6 @@
         try {
             const pos = JSON.parse(localStorage.getItem(STORAGE_KEY));
             if (pos && pos.left !== undefined && pos.top !== undefined) {
-                // Validar que la posición esté dentro del viewport
                 const maxLeft = window.innerWidth - 100;
                 const maxTop = window.innerHeight - 100;
                 const safeLeft = Math.max(0, Math.min(pos.left, maxLeft));
@@ -731,8 +740,7 @@
                 return { left: safeLeft, top: safeTop };
             }
         } catch(e) {}
-        // Default: lado derecho, centrado verticalmente
-        return { left: window.innerWidth - 700, top: Math.max(10, (window.innerHeight - 500) / 2) };
+        return { left: window.innerWidth - 740, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
@@ -743,28 +751,23 @@
         return localStorage.getItem(STORAGE_MINIMIZED) === '1';
     }
 
-    // ==================== UI ====================
+    // ==================== UI STATE ====================
 
     let allLoads = [];
     let activeStatusFilter = 'all';
-    let activeShiftFilter = 'all'; // 'all', 'day', 'night'
-    let activeDestFilter = 'all'; // 'all' o código de destino
+    let activeShiftFilter = 'all';
+    let activeDestFilter = 'all';
     let remoteVersion = null;
 
     // ==================== TURNO ====================
-    // Día: 06:30 - 19:00  |  Noche: 19:30 - 06:00 (del siguiente día)
     function getShift(timeRange) {
         if (!timeRange || timeRange === '-') return 'unknown';
-        // timeRange formato: "15:00 - 16:00", tomar la hora de INICIO
         const match = timeRange.match(/(\d{2}):(\d{2})/);
         if (!match) return 'unknown';
         const hour = parseInt(match[1], 10);
         const min = parseInt(match[2], 10);
         const totalMin = hour * 60 + min;
-        // Día: 06:30 (390 min) a 19:00 (1140 min)
-        // Noche: 19:30 (1170 min) a 06:00 (360 min del siguiente día)
         if (totalMin >= 390 && totalMin <= 1140) return 'day';
-        // Todo lo demás es noche (19:30-06:00)
         return 'night';
     }
 
@@ -809,7 +812,6 @@
     }
 
     function showUpdatePopup(newVersion) {
-        // Remover popup anterior si existe
         const existing = document.getElementById('dock-update-popup');
         if (existing) existing.remove();
 
@@ -839,7 +841,6 @@
             closePopup();
         });
 
-        // Auto-cerrar en 10 segundos
         setTimeout(() => {
             if (document.getElementById('dock-update-popup')) closePopup();
         }, 10000);
@@ -864,12 +865,13 @@
         slot.innerHTML = `<span class="dock-hdr-uptodate">✅ Última versión</span>`;
     }
 
+    // ==================== CREAR PANEL ====================
+
     function createPanel() {
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
 
-        // Estilos inline críticos como fallback por si CSP bloquea el <style>
-        container.style.cssText = 'position:fixed;width:680px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+        container.style.cssText = 'position:fixed;width:720px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
 
         try {
             const pos = loadPosition();
@@ -892,9 +894,6 @@
                     </div>
                 </div>
                 <div id="dock-panel-filters">
-                    <div class="dock-filter-row" id="dock-filter-date-row">
-                        <span class="dock-filter-row-label">FECHA:</span>
-                    </div>
                     <div class="dock-filter-row" id="dock-filter-shift-row">
                         <span class="dock-filter-row-label">TURNO:</span>
                         <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Todos</button>
@@ -916,7 +915,7 @@
             const copyBtn = document.getElementById('dock-btn-copy');
             const excelBtn = document.getElementById('dock-btn-excel');
 
-            if (refreshBtn) refreshBtn.addEventListener('click', refreshData);
+            if (refreshBtn) refreshBtn.addEventListener('click', () => refreshData());
             if (minimizeBtn) minimizeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -950,81 +949,39 @@
             container.classList.add('minimized');
         }
 
-        setTimeout(refreshData, 2500);
+        setTimeout(() => refreshData(), 3000);
 
         // Verificar actualizaciones desde GitHub
         setTimeout(checkForUpdates, 3000);
 
         // Auto-refresh cada 10 minutos (600000 ms)
-        setInterval(refreshData, 600000);
+        setInterval(() => refreshData(), 600000);
     }
 
+    // ==================== REFRESH DATA (MULTI-NODO ASYNC) ====================
+
     function refreshData() {
-        allLoads = extractLoads();
+        allLoads = extractLoadsFromDoc(document);
+        console.log(`[OB Dock] Extracted ${allLoads.length} loads`);
         activeStatusFilter = 'all';
-        updateDateFilters();
         applyFilters();
     }
 
-    function updateDateFilters() {
-        const dates = [...new Set(allLoads.map(l => l.day).filter(d => d))];
-        dates.sort();
-
-        const dateRow = document.getElementById('dock-filter-date-row');
-
-        if (dates.length > 1) {
-            dateRow.style.display = 'flex';
-            dateRow.innerHTML = '<span class="dock-filter-row-label">FECHA:</span>';
-
-            const allBtn = document.createElement('button');
-            allBtn.className = 'dock-filter-btn active';
-            allBtn.setAttribute('data-date', 'all');
-            allBtn.textContent = '📅 Todas';
-            allBtn.addEventListener('click', () => {
-                dateRow.querySelectorAll('.dock-filter-btn').forEach(b => b.classList.remove('active'));
-                allBtn.classList.add('active');
-                applyFilters();
-            });
-            dateRow.appendChild(allBtn);
-
-            dates.forEach(date => {
-                const btn = document.createElement('button');
-                btn.className = 'dock-filter-btn';
-                btn.setAttribute('data-date', date);
-                btn.textContent = `📅 ${date}`;
-                btn.addEventListener('click', () => {
-                    dateRow.querySelectorAll('.dock-filter-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    applyFilters();
-                });
-                dateRow.appendChild(btn);
-            });
-        } else {
-            dateRow.style.display = 'none';
-        }
-    }
-
-    function getActiveDate() {
-        const active = document.querySelector('#dock-filter-date-row .dock-filter-btn.active');
-        return active ? active.getAttribute('data-date') : 'all';
-    }
+    // ==================== FILTRO HOY / MAÑANA / TODAS ====================
+    // ==================== FILTROS ====================
 
     function getFilteredLoads() {
-        const dateFilter = getActiveDate();
-
         return allLoads.filter(load => {
+            // Status filter
             if (activeStatusFilter !== 'all') {
                 if (load.statusClass !== activeStatusFilter) return false;
             }
-            if (dateFilter !== 'all') {
-                if (load.day !== dateFilter) return false;
-            }
-            // Filtro de turno
+            // Shift filter
             if (activeShiftFilter !== 'all') {
                 const shift = getShift(load.timeRange);
                 if (shift !== activeShiftFilter) return false;
             }
-            // Filtro de destino
+            // Destination filter
             if (activeDestFilter !== 'all') {
                 if (load.destination !== activeDestFilter) return false;
             }
@@ -1041,14 +998,8 @@
 
     function renderStats() {
         const stats = document.getElementById('dock-panel-stats');
-        const dateFilter = getActiveDate();
-
         const dateFiltered = allLoads.filter(load => {
-            if (dateFilter !== 'all' && load.day !== dateFilter) return false;
-            // Aplicar filtro de turno también a los stats
-            if (activeShiftFilter !== 'all') {
-                if (getShift(load.timeRange) !== activeShiftFilter) return false;
-            }
+            if (activeShiftFilter !== 'all' && getShift(load.timeRange) !== activeShiftFilter) return false;
             return true;
         });
 
@@ -1098,17 +1049,12 @@
         const destDiv = document.getElementById('dock-panel-destinations');
         if (!destDiv) return;
 
-        const dateFilter = getActiveDate();
-
-        // Filtrar por fecha, turno y status (pero NO por destino) para contar destinos
         const baseFiltered = allLoads.filter(load => {
-            if (dateFilter !== 'all' && load.day !== dateFilter) return false;
             if (activeShiftFilter !== 'all' && getShift(load.timeRange) !== activeShiftFilter) return false;
             if (activeStatusFilter !== 'all' && load.statusClass !== activeStatusFilter) return false;
             return true;
         });
 
-        // Contar por destino
         const destCounts = {};
         baseFiltered.forEach(load => {
             const d = load.destination;
@@ -1126,11 +1072,9 @@
 
         let html = '';
 
-        // Chip "Todos"
         const allActive = activeDestFilter === 'all' ? 'active' : '';
         html += `<span class="dock-dest-chip ${allActive}" data-dest="all">📍 Todos <span class="dest-count">${baseFiltered.length}</span></span>`;
 
-        // Chips por destino
         destinations.forEach(dest => {
             const isActive = activeDestFilter === dest ? 'active' : '';
             html += `<span class="dock-dest-chip ${isActive}" data-dest="${dest}">🏭 ${dest} <span class="dest-count">${destCounts[dest]}</span></span>`;
@@ -1138,7 +1082,6 @@
 
         destDiv.innerHTML = html;
 
-        // Event listeners
         destDiv.querySelectorAll('.dock-dest-chip').forEach(chip => {
             chip.addEventListener('click', () => {
                 activeDestFilter = chip.getAttribute('data-dest');
@@ -1158,6 +1101,7 @@
         let html = `
             <div class="dock-table-header">
                 <span>ST</span>
+                <span>NODO</span>
                 <span>RUTA / VRID</span>
                 <span>HORA</span>
                 <span>CARRIER</span>
@@ -1177,6 +1121,7 @@
             html += `
                 <div class="dock-load-row">
                     <span class="dock-col-status" title="${load.statusLabel} (${load.rawStatus})">${load.statusEmoji}</span>
+                    <span class="dock-col-node">${load.node}</span>
                     <span class="dock-col-route" title="${load.label}">${load.label}</span>
                     <span class="dock-col-time">${load.timeRange}</span>
                     <span class="dock-col-carrier" title="${load.carrier}">${load.carrier}</span>
@@ -1208,7 +1153,7 @@
                 currentDay = load.day;
                 text += `📅 ${load.day}\n`;
             }
-            text += `${load.statusEmoji} ${load.label} | ${load.timeRange} | ${load.carrier} | Loc: ${load.location} | Plts: ${load.pallets}\n`;
+            text += `${load.statusEmoji} [${load.node}] ${load.label} | ${load.timeRange} | ${load.carrier} | Loc: ${load.location} | Plts: ${load.pallets}\n`;
         });
 
         text += `\n─────────────────────────────\n`;
@@ -1290,7 +1235,6 @@
         };
 
         handle.addEventListener('mousedown', (e) => {
-            // No iniciar drag si se clickeó un botón
             if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
             startDrag(e);
         });
@@ -1332,19 +1276,16 @@
 
     // ==================== INIT ====================
     function init() {
-        // Esperar a que exista document.body antes de crear el panel
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel...');
+            console.log('[OB Dock] Inicializando panel v9.4...');
             createPanel();
         } else {
-            // Si body no existe todavía, esperar
             document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(createPanel, 1000);
             });
         }
     }
 
-    // Ejecutar init — si document-idle ya cargó, body existe; si no, esperar
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => setTimeout(init, 1000));
     } else {
