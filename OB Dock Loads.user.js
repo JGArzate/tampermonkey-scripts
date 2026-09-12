@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      9.5
-// @description  v9.5 — Excel: Día, Ruta, VR ID, Horario, Pallets, Carrier
+// @version      10.1
+// @description  v10.1 — STG en 2 columnas (TLC1/QYY7), alinear grid, miniatura color header, refresh STG. Cambios desde v10.0: separar STG en 2 cols numéricas, reducir aire entre columnas, miniatura color oscuro, refresh también actualiza STG
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '9.5';
+    const SCRIPT_VERSION = '10.1';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -71,7 +71,7 @@
         /* ===== PANEL EXPANDIDO ===== */
         #dock-panel-container {
             position: fixed;
-            width: 660px;
+            width: 680px;
             max-height: 85vh;
             background: #ffffff;
             border: 1px solid #e0e0e0;
@@ -94,9 +94,9 @@
             min-height: 44px !important;
             border-radius: 50%;
             overflow: hidden;
-            box-shadow: 0 2px 12px rgba(56, 189, 248, 0.4), 0 0 20px rgba(56, 189, 248, 0.2);
-            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-            border: 2px solid rgba(56, 189, 248, 0.6);
+            box-shadow: 0 2px 12px rgba(26, 35, 50, 0.4), 0 0 12px rgba(35, 47, 62, 0.3);
+            background: linear-gradient(135deg, #1a2332, #232f3e);
+            border: 2px solid rgba(35, 47, 62, 0.8);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -104,7 +104,7 @@
         }
         #dock-panel-container.minimized:hover {
             transform: scale(1.15);
-            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.6), 0 0 30px rgba(56, 189, 248, 0.35);
+            box-shadow: 0 4px 20px rgba(26, 35, 50, 0.6), 0 0 20px rgba(35, 47, 62, 0.4);
         }
         #dock-panel-container.minimized #dock-panel-header,
         #dock-panel-container.minimized #dock-panel-filters,
@@ -285,9 +285,9 @@
         }
         .dock-table-header {
             display: grid;
-            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
-            gap: 4px;
-            padding: 6px 12px;
+            grid-template-columns: 26px 1fr 90px 65px 50px 32px 38px 38px;
+            gap: 2px;
+            padding: 5px 10px;
             background: #f0f3f5;
             border-bottom: 1px solid #e0e0e0;
             font-size: 10px;
@@ -319,10 +319,10 @@
         }
         .dock-load-row {
             display: grid;
-            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
-            gap: 4px;
+            grid-template-columns: 26px 1fr 90px 65px 50px 32px 38px 38px;
+            gap: 2px;
             align-items: center;
-            padding: 5px 12px;
+            padding: 4px 10px;
             border-bottom: 1px solid #f5f5f5;
             font-size: 12px;
             transition: background 0.15s;
@@ -363,6 +363,37 @@
             font-weight: 600;
             font-size: 11px;
             text-align: center;
+        }
+        .dock-col-stg {
+            display: flex;
+            gap: 3px;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+        }
+        .dock-col-stg a {
+            padding: 1px 5px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 10px;
+            transition: all 0.15s;
+        }
+        .dock-col-stg a.stg-has-value {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .dock-col-stg a.stg-has-value:hover {
+            background: #1d4ed8;
+            color: #fff;
+        }
+        .dock-col-stg a.stg-zero {
+            background: #f0f0f0;
+            color: #bbb;
+        }
+        .dock-col-stg .stg-loading {
+            color: #bbb;
+            font-size: 9px;
         }
 
         .dock-no-results {
@@ -711,7 +742,7 @@
                 return { left: safeLeft, top: safeTop };
             }
         } catch(e) {}
-        return { left: window.innerWidth - 680, top: Math.max(10, (window.innerHeight - 500) / 2) };
+        return { left: window.innerWidth - 700, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
@@ -837,13 +868,110 @@
         slot.innerHTML = `<span class="dock-hdr-uptodate">✅ Última versión</span>`;
     }
 
+    // ==================== STG STAGES INTEGRATION ====================
+    const TANTEI_URL = 'https://trans-logistics.amazon.com/sortcenter/tantei';
+    const GRAPHQL_ENDPOINT = 'https://trans-logistics.amazon.com/sortcenter/tantei/graphql';
+    const SEARCH_QUERY = 'query ($queryInput: [SearchTermInput!]!) { searchEntities(searchTerms: $queryInput) { searchTerm { nodeId searchId } summary { ... on ContainerSummary { containerLabel childrenCountDetails { childrenCount hasMoreChildren } } } } }';
+
+    let stgData = {}; // { 'MEX2': { tlc1: 39, qyy7: 12 }, ... }
+    let stgToken = null;
+
+    function getStgUrl(nodeId, dest) {
+        return `https://trans-logistics.amazon.com/sortcenter/tantei?nodeId=${nodeId}&searchType=Container&searchId=STG-${dest}`;
+    }
+
+    async function fetchCsrfToken() {
+        try {
+            const resp = await fetch(TANTEI_URL + '?nodeId=TLC1', { credentials: 'same-origin' });
+            const html = await resp.text();
+            const match = html.match(/name='__token_'\s+value='([^']+)'/);
+            if (match) {
+                stgToken = match[1];
+                console.log('[OB Dock] STG CSRF token obtenido');
+                return true;
+            }
+        } catch(e) {
+            console.warn('[OB Dock] Error obteniendo CSRF token:', e.message);
+        }
+        return false;
+    }
+
+    async function fetchStgData(destinations) {
+        if (!stgToken) {
+            const got = await fetchCsrfToken();
+            if (!got) {
+                console.warn('[OB Dock] No se pudo obtener CSRF token para STG');
+                return;
+            }
+        }
+
+        // Reset
+        stgData = {};
+        destinations.forEach(d => { stgData[d] = { tlc1: '-', qyy7: '-' }; });
+
+        // Build query inputs for both nodes
+        const tlc1Input = destinations.map(d => ({ nodeId: 'TLC1', searchId: 'STG-' + d, searchIdType: 'UNKNOWN' }));
+        const qyy7Input = destinations.map(d => ({ nodeId: 'QYY7', searchId: 'STG-' + d, searchIdType: 'UNKNOWN' }));
+
+        try {
+            // Fetch TLC1
+            const r1 = await fetch(GRAPHQL_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'anti-csrftoken-a2z': stgToken },
+                credentials: 'same-origin',
+                body: JSON.stringify({ query: SEARCH_QUERY, variables: { queryInput: tlc1Input } })
+            });
+            if (r1.ok) {
+                const data1 = await r1.json();
+                if (data1.data && data1.data.searchEntities) {
+                    data1.data.searchEntities.forEach(e => {
+                        if (e.searchTerm && e.summary && e.summary.childrenCountDetails) {
+                            const dest = e.searchTerm.searchId.replace('STG-', '');
+                            if (stgData[dest]) stgData[dest].tlc1 = e.summary.childrenCountDetails.childrenCount || 0;
+                        }
+                    });
+                }
+            } else if (r1.status === 403) {
+                // Token expired, try to refresh
+                console.warn('[OB Dock] STG token expirado, reintentando...');
+                stgToken = null;
+                await fetchCsrfToken();
+                // Don't retry here to avoid loops, data will refresh next cycle
+                return;
+            }
+
+            // Fetch QYY7
+            const r2 = await fetch(GRAPHQL_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'anti-csrftoken-a2z': stgToken },
+                credentials: 'same-origin',
+                body: JSON.stringify({ query: SEARCH_QUERY, variables: { queryInput: qyy7Input } })
+            });
+            if (r2.ok) {
+                const data2 = await r2.json();
+                if (data2.data && data2.data.searchEntities) {
+                    data2.data.searchEntities.forEach(e => {
+                        if (e.searchTerm && e.summary && e.summary.childrenCountDetails) {
+                            const dest = e.searchTerm.searchId.replace('STG-', '');
+                            if (stgData[dest]) stgData[dest].qyy7 = e.summary.childrenCountDetails.childrenCount || 0;
+                        }
+                    });
+                }
+            }
+
+            console.log('[OB Dock] STG data loaded:', stgData);
+        } catch(e) {
+            console.error('[OB Dock] Error fetching STG data:', e);
+        }
+    }
+
     // ==================== CREAR PANEL ====================
 
     function createPanel() {
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
 
-        container.style.cssText = 'position:fixed;width:660px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+        container.style.cssText = 'position:fixed;width:680px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
 
         try {
             const pos = loadPosition();
@@ -935,13 +1063,22 @@
 
     // ==================== REFRESH DATA (MULTI-NODO ASYNC) ====================
 
-    function refreshData() {
+    async function refreshData() {
         allLoads = extractLoadsFromDoc(document);
         console.log(`[OB Dock] Extracted ${allLoads.length} loads`);
         activeStatusFilter = 'all';
         activeDateFilter = 'all';
         updateDateFilters();
         applyFilters();
+
+        // Fetch STG data in background for unique destinations
+        const destinations = [...new Set(allLoads.map(l => l.destination).filter(d => d && d !== '-'))];
+        if (destinations.length > 0) {
+            await fetchStgData(destinations);
+            // Re-render with STG data
+            const filtered = getFilteredLoads();
+            renderLoads(filtered);
+        }
     }
 
     function updateDateFilters() {
@@ -1133,6 +1270,8 @@
                 <span>CARRIER</span>
                 <span>UBIC.</span>
                 <span>PLTS</span>
+                <span>STG T</span>
+                <span>STG Q</span>
             </div>
         `;
 
@@ -1144,16 +1283,35 @@
                 html += `<div class="dock-date-separator">${load.day}</div>`;
             }
 
-            html += `
+            const dest = load.destination;
+            const stg = stgData[dest];
+            let stgT = '<span class="stg-loading">·</span>';
+            let stgQ = '<span class="stg-loading">·</span>';
+            if (stg && dest && dest !== '-') {
+                const t = stg.tlc1;
+                const q = stg.qyy7;
+                const tClass = (typeof t === 'number' && t > 0) ? 'stg-has-value' : 'stg-zero';
+                const qClass = (typeof q === 'number' && q > 0) ? 'stg-has-value' : 'stg-zero';
+                const tUrl = getStgUrl('TLC1', dest);
+                const qUrl = getStgUrl('QYY7', dest);
+                const tLabel = typeof t === 'number' ? t : '-';
+                const qLabel = typeof q === 'number' ? q : '-';
+                stgT = '<a href="' + tUrl + '" target="_blank" class="' + tClass + '" title="STG-' + dest + ' en TLC1">' + tLabel + '</a>';
+                stgQ = '<a href="' + qUrl + '" target="_blank" class="' + qClass + '" title="STG-' + dest + ' en QYY7">' + qLabel + '</a>';
+            }
+
+            html += \`
                 <div class="dock-load-row">
-                    <span class="dock-col-status" title="${load.statusLabel} (${load.rawStatus})">${load.statusEmoji}</span>
-                    <span class="dock-col-route" title="${load.label}">${load.label}</span>
-                    <span class="dock-col-time">${load.timeRange}</span>
-                    <span class="dock-col-carrier" title="${load.carrier}">${load.carrier}</span>
-                    <span class="dock-col-location">${load.location}</span>
-                    <span class="dock-col-pallets">${load.pallets}</span>
+                    <span class="dock-col-status" title="\${load.statusLabel} (\${load.rawStatus})">\${load.statusEmoji}</span>
+                    <span class="dock-col-route" title="\${load.label}">\${load.label}</span>
+                    <span class="dock-col-time">\${load.timeRange}</span>
+                    <span class="dock-col-carrier" title="\${load.carrier}">\${load.carrier}</span>
+                    <span class="dock-col-location">\${load.location}</span>
+                    <span class="dock-col-pallets">\${load.pallets}</span>
+                    <span class="dock-col-stg">\${stgT}</span>
+                    <span class="dock-col-stg">\${stgQ}</span>
                 </div>
-            `;
+            \`;
         });
 
         body.innerHTML = html;
@@ -1293,7 +1451,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v9.5...');
+            console.log('[OB Dock] Inicializando panel v10.1...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
