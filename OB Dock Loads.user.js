@@ -45,19 +45,29 @@
     // ==================== ESTILOS ====================
     // Función alternativa: crear <style> tag directamente para evitar CSP unsafe-inline
     function injectStyles(css) {
+        let injected = false;
         try {
             const style = document.createElement('style');
             style.textContent = css;
-            style.nonce = (window.__webpack_nonce__ || window.__CSP_NONCE__); // Intenta usar nonce si existe
-            document.head.appendChild(style);
+            // Intentar con nonce si existe
+            const nonce = document.querySelector('style[nonce]')?.nonce || window.__webpack_nonce__ || window.__CSP_NONCE__;
+            if (nonce) style.nonce = nonce;
+            (document.head || document.documentElement).appendChild(style);
+            injected = true;
+            console.log('[OB Dock] Estilos inyectados OK');
         } catch (e) {
             console.error('[OB Dock] Error inyectando estilos:', e);
-            // Fallback: agregar estilos inline si falla el método anterior
+        }
+        // Fallback: segundo intento sin nonce
+        if (!injected) {
             try {
                 const style2 = document.createElement('style');
                 style2.innerHTML = css;
                 document.documentElement.appendChild(style2);
-            } catch (e2) { /* ignorar */ }
+                console.log('[OB Dock] Estilos inyectados (fallback)');
+            } catch (e2) {
+                console.error('[OB Dock] Fallback de estilos también falló:', e2);
+            }
         }
     }
 
@@ -103,7 +113,8 @@
         #dock-panel-container.minimized #dock-panel-header,
         #dock-panel-container.minimized #dock-panel-filters,
         #dock-panel-container.minimized #dock-panel-stats,
-        #dock-panel-container.minimized #dock-panel-body {
+        #dock-panel-container.minimized #dock-panel-body,
+        #dock-panel-container.minimized #dock-panel-footer-min {
             display: none !important;
         }
         #dock-mini-icon {
@@ -841,7 +852,10 @@
     function createPanel() {
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
-        
+
+        // Estilos inline críticos como fallback por si CSP bloquea el <style>
+        container.style.cssText = 'position:fixed;width:680px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+
         try {
             const pos = loadPosition();
             container.style.left = pos.left + 'px';
@@ -877,8 +891,12 @@
                 <div id="dock-panel-body">
                     <div class="dock-no-results">Cargando datos...</div>
                 </div>
+                <div id="dock-panel-footer-min" style="padding:6px 16px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;background:#fafbfc;">
+                    <button class="btn-hdr-minimize" id="dock-panel-minimize-bottom" title="Minimizar" style="background:rgba(0,0,0,0.06);border:none;font-size:14px;cursor:pointer;padding:4px 12px;border-radius:6px;color:#555;font-weight:600;transition:background 0.2s;">➖ Minimizar</button>
+                </div>
             `;
             document.body.appendChild(container);
+            console.log('[OB Dock] Panel creado y agregado al DOM. Visible:', container.offsetWidth > 0);
 
             const refreshBtn = document.getElementById('dock-panel-refresh');
             const minimizeBtn = document.getElementById('dock-panel-minimize');
@@ -889,6 +907,11 @@
             if (minimizeBtn) minimizeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                toggleMinimize();
+            });
+            const minimizeBtnBottom = document.getElementById('dock-panel-minimize-bottom');
+            if (minimizeBtnBottom) minimizeBtnBottom.addEventListener('click', (e) => {
+                e.stopPropagation();
                 toggleMinimize();
             });
             if (copyBtn) copyBtn.addEventListener('click', (e) => {
