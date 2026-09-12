@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      10.5
-// @description  v10.5 — Filtros unificados con encabezados (Fecha, Turno, Estatus, Destinos) centrados
+// @version      10.6
+// @description  v10.6 — Extracción robusta content-based para carrier/status/hora/ubicación, logging detallado
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '10.5';
+    const SCRIPT_VERSION = '10.6';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -613,7 +613,16 @@
             if (txt === 'carrier') indexes.carrier = tdIdx;
         });
 
-        console.log('[OB Dock] Column indexes detected:', indexes);
+        // Log all header texts for debugging
+        const headerTexts = [];
+        headerCells.forEach(th => headerTexts.push(th.textContent.trim()));
+        console.log('[OB Dock] Header texts:', headerTexts.join(' | '));
+        console.log('[OB Dock] Column indexes:', JSON.stringify(indexes));
+        if (sampleDataRow) {
+            const sampleTexts = [];
+            sampleDataRow.querySelectorAll('td').forEach(td => sampleTexts.push(td.textContent.trim().substring(0, 20)));
+            console.log('[OB Dock] Sample row (' + sampleDataRow.querySelectorAll('td').length + ' cells):', sampleTexts.join(' | '));
+        }
         return indexes;
     }
 
@@ -658,15 +667,26 @@
             let node = '';
             let destination = '';
             let carrier = '';
+            let cellTimeRange = '';
 
             cells.forEach((cell, idx) => {
                 const cellText = cell.textContent.trim();
 
                 if (!status) {
-                    const cleanText = cellText.split('\n')[0].trim().replace(/Since.*$/i, '').trim();
+                    const cleanText = cellText.split('\n')[0].trim().replace(/Since.*$/i, '').trim().replace(/\s+/g, ' ');
                     const knownStatuses = ['Completed', 'Scheduled', 'Loading In Progress', 'Loading', 'Ready For Loading', 'Ready to Depart', 'Cancelled', 'Not Started', 'In Progress', 'In progress'];
                     if (knownStatuses.includes(cleanText)) {
                         status = cleanText;
+                    }
+                    // Also try partial/case-insensitive match
+                    if (!status) {
+                        const lower = cleanText.toLowerCase();
+                        if (lower.includes('completed') || lower.includes('completado')) status = 'Completed';
+                        else if (lower.includes('scheduled') || lower.includes('agendado')) status = 'Scheduled';
+                        else if (lower.includes('loading in progress') || lower.includes('en proceso')) status = 'Loading In Progress';
+                        else if (lower === 'loading' || lower === 'cargando') status = 'Loading';
+                        else if (lower.includes('ready for loading') || lower.includes('listo para cargar')) status = 'Ready For Loading';
+                        else if (lower.includes('ready to depart') || lower.includes('para irse')) status = 'Ready to Depart';
                     }
                 }
 
@@ -703,8 +723,33 @@
                     if (cellText && cellText !== '-') pallets = cellText;
                 }
 
+                // Content-based pallets: a cell that is purely a small number (1-99)
+                if (!pallets && /^\d{1,2}$/.test(cellText) && parseInt(cellText) > 0 && parseInt(cellText) < 100) {
+                    // Only use if we already found route (to avoid false positives on early cells)
+                    if (route && idx > 5) {
+                        pallets = cellText;
+                    }
+                }
+
                 if (!carrier && colIndexes.carrier >= 0 && idx === colIndexes.carrier) {
                     if (cellText && cellText !== '-') carrier = cellText.replace(/\s*\[.*?\]/g, '').trim();
+                }
+
+                // Content-based time range detection
+                if (!cellTimeRange) {
+                    const timeMatch = cellText.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+                    if (timeMatch) {
+                        cellTimeRange = timeMatch[1] + ' - ' + timeMatch[2];
+                    }
+                }
+
+                // Content-based carrier detection (if index-based failed)
+                if (!carrier && cellText.length >= 3 && cellText.length <= 30) {
+                    const carrierPatterns = /^(MXLAR|ESTAFETA|FEDEX|DHL|UPS|PAQUETEXPRESS|SENDEX|TRESGUERRAS|REDPACK|CASTORES|ATS|FLECHA AMARILLA|TRANSPORTES|T-NORTE|ODFL)/i;
+                    const cm = cellText.replace(/\s*\[.*?\]/g, '').trim();
+                    if (carrierPatterns.test(cm)) {
+                        carrier = cm;
+                    }
                 }
             });
 
@@ -724,15 +769,9 @@
                     }
                 }
 
-                // Secondary: extract time from individual cells if not found from window header
-                if (!timeRange) {
-                    cells.forEach((cell) => {
-                        const ct = cell.textContent.trim();
-                        const tm = ct.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
-                        if (tm && !timeRange) {
-                            timeRange = tm[1] + ' - ' + tm[2];
-                        }
-                    });
+                // Use cellTimeRange found during cell iteration
+                if (!timeRange && cellTimeRange) {
+                    timeRange = cellTimeRange;
                 }
 
                 const statusInfo = getStatusInfo(status);
@@ -757,6 +796,10 @@
             }
         });
 
+        if (loads.length > 0) {
+            const first = loads[0];
+            console.log('[OB Dock] First load sample:', JSON.stringify({route: first.route, vrId: first.vrId, status: first.rawStatus, carrier: first.carrier, location: first.location, pallets: first.pallets, timeRange: first.timeRange, day: first.day}));
+        }
         console.log(`[OB Dock] Extracted ${loads.length} loads from page. Days found: ${[...new Set(loads.map(l=>l.day).filter(d=>d))].join(', ')}. Times: ${[...new Set(loads.map(l=>l.timeRange).filter(t=>t))].join(', ')}`);
         return loads;
     }
@@ -1500,7 +1543,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v10.5...');
+            console.log('[OB Dock] Inicializando panel v10.6...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
