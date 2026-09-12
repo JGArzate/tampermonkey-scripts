@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      8.4
-// @description  v8.4 — Filtros: Status, Turno, Fecha, Destinos con conteo + Posición centrada + Auto-update GitHub
+// @version      8.5
+// @description  v8.5 — Fix miniatura + quitar minimizar inferior
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '8.3';
+    const SCRIPT_VERSION = '8.5';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -113,14 +113,18 @@
         #dock-panel-container.minimized #dock-panel-header,
         #dock-panel-container.minimized #dock-panel-filters,
         #dock-panel-container.minimized #dock-panel-stats,
-        #dock-panel-container.minimized #dock-panel-body,
-        #dock-panel-container.minimized #dock-panel-footer-min {
+        #dock-panel-container.minimized #dock-panel-destinations,
+        #dock-panel-container.minimized #dock-panel-body {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
         }
         #dock-mini-icon {
             display: none;
             font-size: 20px;
             line-height: 1;
+            pointer-events: none;
         }
         #dock-panel-container.minimized #dock-mini-icon {
             display: flex;
@@ -128,6 +132,10 @@
             justify-content: center;
             width: 100%;
             height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
         }
 
         /* ===== HEADER ===== */
@@ -899,9 +907,6 @@
                 <div id="dock-panel-body">
                     <div class="dock-no-results">Cargando datos...</div>
                 </div>
-                <div id="dock-panel-footer-min" style="padding:6px 16px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;background:#fafbfc;">
-                    <button class="btn-hdr-minimize" id="dock-panel-minimize-bottom" title="Minimizar" style="background:rgba(0,0,0,0.06);border:none;font-size:14px;cursor:pointer;padding:4px 12px;border-radius:6px;color:#555;font-weight:600;transition:background 0.2s;">➖ Minimizar</button>
-                </div>
             `;
             document.body.appendChild(container);
             console.log('[OB Dock] Panel creado y agregado al DOM. Visible:', container.offsetWidth > 0);
@@ -915,11 +920,6 @@
             if (minimizeBtn) minimizeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                toggleMinimize();
-            });
-            const minimizeBtnBottom = document.getElementById('dock-panel-minimize-bottom');
-            if (minimizeBtnBottom) minimizeBtnBottom.addEventListener('click', (e) => {
-                e.stopPropagation();
                 toggleMinimize();
             });
             if (copyBtn) copyBtn.addEventListener('click', (e) => {
