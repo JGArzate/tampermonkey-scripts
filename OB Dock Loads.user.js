@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OB Dock Loads
 // @namespace    http://tampermonkey.net/
-// @version      9.4
-// @description  v9.4 — Solo página actual, sin iframe multi-nodo
+// @version      9.5
+// @description  v9.5 — Excel: Día, Ruta, VR ID, Horario, Pallets, Carrier
 // @author       Jorge Gomez (jrgmz)
 // @match        https://trans-logistics.amazon.com/ssp/dock/hrz/ob*
 // @grant        GM_addStyle
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '9.4';
+    const SCRIPT_VERSION = '9.5';
     const SCRIPT_NAME = 'OB Dock Loads';
     const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20Dock%20Loads.user.js';
 
@@ -71,7 +71,7 @@
         /* ===== PANEL EXPANDIDO ===== */
         #dock-panel-container {
             position: fixed;
-            width: 720px;
+            width: 660px;
             max-height: 85vh;
             background: #ffffff;
             border: 1px solid #e0e0e0;
@@ -285,7 +285,7 @@
         }
         .dock-table-header {
             display: grid;
-            grid-template-columns: 30px 42px 1fr 100px 80px 70px 45px;
+            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
             gap: 4px;
             padding: 6px 12px;
             background: #f0f3f5;
@@ -319,7 +319,7 @@
         }
         .dock-load-row {
             display: grid;
-            grid-template-columns: 30px 42px 1fr 100px 80px 70px 45px;
+            grid-template-columns: 30px 1fr 100px 80px 70px 45px;
             gap: 4px;
             align-items: center;
             padding: 5px 12px;
@@ -333,16 +333,6 @@
         .dock-col-status {
             text-align: center;
             font-size: 13px;
-        }
-        .dock-col-node {
-            font-size: 9px;
-            font-weight: 700;
-            text-align: center;
-            padding: 1px 4px;
-            border-radius: 4px;
-            background: #eef2ff;
-            color: #4338ca;
-            line-height: 1.4;
         }
         .dock-col-route {
             color: #0073bb;
@@ -380,25 +370,6 @@
             color: #888;
             padding: 30px 20px;
             font-style: italic;
-        }
-
-        /* ===== CUSTOM RANGE INPUTS ===== */
-        .dock-range-input {
-            padding: 3px 6px;
-            border: 1.5px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 11px;
-            font-family: inherit;
-            color: #444;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .dock-range-input:focus {
-            border-color: #5b21b6;
-        }
-        .dock-range-arrow {
-            font-size: 11px;
-            color: #888;
         }
 
         /* ===== UPDATE SYSTEM ===== */
@@ -740,7 +711,7 @@
                 return { left: safeLeft, top: safeTop };
             }
         } catch(e) {}
-        return { left: window.innerWidth - 740, top: Math.max(10, (window.innerHeight - 500) / 2) };
+        return { left: window.innerWidth - 680, top: Math.max(10, (window.innerHeight - 500) / 2) };
     }
 
     function saveMinimizedState(isMinimized) {
@@ -757,6 +728,7 @@
     let activeStatusFilter = 'all';
     let activeShiftFilter = 'all';
     let activeDestFilter = 'all';
+    let activeDateFilter = 'all';
     let remoteVersion = null;
 
     // ==================== TURNO ====================
@@ -871,7 +843,7 @@
         const container = document.createElement('div');
         container.id = 'dock-panel-container';
 
-        container.style.cssText = 'position:fixed;width:720px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
+        container.style.cssText = 'position:fixed;width:660px;max-height:85vh;background:#fff;border:1px solid #e0e0e0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:99999;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:13px;display:flex;flex-direction:column;overflow:hidden;';
 
         try {
             const pos = loadPosition();
@@ -894,6 +866,9 @@
                     </div>
                 </div>
                 <div id="dock-panel-filters">
+                    <div class="dock-filter-row" id="dock-filter-date-row">
+                        <span class="dock-filter-row-label">FECHA:</span>
+                    </div>
                     <div class="dock-filter-row" id="dock-filter-shift-row">
                         <span class="dock-filter-row-label">TURNO:</span>
                         <button class="dock-filter-btn shift-btn active" data-shift="all">🔘 Todos</button>
@@ -964,7 +939,53 @@
         allLoads = extractLoadsFromDoc(document);
         console.log(`[OB Dock] Extracted ${allLoads.length} loads`);
         activeStatusFilter = 'all';
+        activeDateFilter = 'all';
+        updateDateFilters();
         applyFilters();
+    }
+
+    function updateDateFilters() {
+        const dates = [...new Set(allLoads.map(l => l.day).filter(d => d))];
+        dates.sort();
+
+        const dateRow = document.getElementById('dock-filter-date-row');
+        if (!dateRow) return;
+
+        dateRow.innerHTML = '<span class="dock-filter-row-label">FECHA:</span>';
+
+        const allBtn = document.createElement('button');
+        allBtn.className = 'dock-filter-btn date-btn active';
+        allBtn.setAttribute('data-date', 'all');
+        allBtn.textContent = '📅 Todas';
+        allBtn.addEventListener('click', () => {
+            dateRow.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+            allBtn.classList.add('active');
+            activeDateFilter = 'all';
+            applyFilters();
+        });
+        dateRow.appendChild(allBtn);
+
+        dates.forEach(date => {
+            const count = allLoads.filter(l => l.day === date).length;
+            const btn = document.createElement('button');
+            btn.className = 'dock-filter-btn date-btn';
+            btn.setAttribute('data-date', date);
+            btn.textContent = '📅 ' + date + ' (' + count + ')';
+            btn.addEventListener('click', () => {
+                dateRow.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeDateFilter = date;
+                applyFilters();
+            });
+            dateRow.appendChild(btn);
+        });
+
+        // Si solo hay una fecha, ocultar el filtro
+        if (dates.length <= 1) {
+            dateRow.style.display = 'none';
+        } else {
+            dateRow.style.display = 'flex';
+        }
     }
 
     // ==================== FILTRO HOY / MAÑANA / TODAS ====================
@@ -975,6 +996,10 @@
             // Status filter
             if (activeStatusFilter !== 'all') {
                 if (load.statusClass !== activeStatusFilter) return false;
+            }
+            // Date filter
+            if (activeDateFilter !== 'all') {
+                if (load.day !== activeDateFilter) return false;
             }
             // Shift filter
             if (activeShiftFilter !== 'all') {
@@ -999,6 +1024,7 @@
     function renderStats() {
         const stats = document.getElementById('dock-panel-stats');
         const dateFiltered = allLoads.filter(load => {
+            if (activeDateFilter !== 'all' && load.day !== activeDateFilter) return false;
             if (activeShiftFilter !== 'all' && getShift(load.timeRange) !== activeShiftFilter) return false;
             return true;
         });
@@ -1050,6 +1076,7 @@
         if (!destDiv) return;
 
         const baseFiltered = allLoads.filter(load => {
+            if (activeDateFilter !== 'all' && load.day !== activeDateFilter) return false;
             if (activeShiftFilter !== 'all' && getShift(load.timeRange) !== activeShiftFilter) return false;
             if (activeStatusFilter !== 'all' && load.statusClass !== activeStatusFilter) return false;
             return true;
@@ -1101,7 +1128,6 @@
         let html = `
             <div class="dock-table-header">
                 <span>ST</span>
-                <span>NODO</span>
                 <span>RUTA / VRID</span>
                 <span>HORA</span>
                 <span>CARRIER</span>
@@ -1121,7 +1147,6 @@
             html += `
                 <div class="dock-load-row">
                     <span class="dock-col-status" title="${load.statusLabel} (${load.rawStatus})">${load.statusEmoji}</span>
-                    <span class="dock-col-node">${load.node}</span>
                     <span class="dock-col-route" title="${load.label}">${load.label}</span>
                     <span class="dock-col-time">${load.timeRange}</span>
                     <span class="dock-col-carrier" title="${load.carrier}">${load.carrier}</span>
@@ -1144,20 +1169,11 @@
             return;
         }
 
-        let text = `🚛 OB Dock Cargas\n`;
-        text += `─────────────────────────────\n\n`;
+        let text = 'Ruta | VR ID\n\n';
 
-        let currentDay = '';
         filtered.forEach(load => {
-            if (load.day && load.day !== currentDay) {
-                currentDay = load.day;
-                text += `📅 ${load.day}\n`;
-            }
-            text += `${load.statusEmoji} [${load.node}] ${load.label} | ${load.timeRange} | ${load.carrier} | Loc: ${load.location} | Plts: ${load.pallets}\n`;
+            text += `${load.route} | ${load.vrId}\n`;
         });
-
-        text += `\n─────────────────────────────\n`;
-        text += `📦 Total: ${filtered.length} carga(s)`;
 
         navigator.clipboard.writeText(text).then(() => {
             showBtnFeedback('dock-btn-copy', '✅ Copiado');
@@ -1183,10 +1199,10 @@
         }
 
         let csv = '\uFEFF';
-        csv += 'Status,Ruta,VR ID,Nodo,Horario,Carrier,Ubicación,Pallets,Día\n';
+        csv += 'Día,Ruta,VR ID,Horario,Pallets,Carrier\n';
 
         filtered.forEach(load => {
-            csv += `"${load.statusLabel}","${load.route}","${load.vrId}","${load.node}","${load.timeRange}","${load.carrier}","${load.location}","${load.pallets}","${load.day}"\n`;
+            csv += `"${load.day}","${load.route}","${load.vrId}","${load.timeRange}","${load.pallets}","${load.carrier}"\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1277,7 +1293,7 @@
     // ==================== INIT ====================
     function init() {
         if (document.body) {
-            console.log('[OB Dock] Inicializando panel v9.4...');
+            console.log('[OB Dock] Inicializando panel v9.5...');
             createPanel();
         } else {
             document.addEventListener('DOMContentLoaded', () => {
