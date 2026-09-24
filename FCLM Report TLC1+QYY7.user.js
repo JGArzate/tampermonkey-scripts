@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      3.8
-// @description  Fix: link funcRollup en Case Transfer In con submenu
+// @version      4.7
+// @description  Transfer Out toma TO Palletize del PPR + externo 01785143645486
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.8';
+    const SCRIPT_VERSION = '4.7';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -24,7 +24,7 @@
         id: 'TLC1', color: '#0073bb',
         sections: [
             { name: 'INBOUND', processes: ['Receive - Total','Receive Support','IB Problem Solve'] },
-            { name: 'OUTBOUND', processes: ['RC Sort - Total','Transfer Out','Transfer Out Dock'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','TO Palletize','Transfer Out Dock'] }
         ],
         hiddenProcesses: ['Each Receive - Total','Case Receive','Pallet Receive','Prep Recorder - Total','IB Total','DA Bldg to Bldg Transfer TOTAL'],
         productivity: {
@@ -39,16 +39,16 @@
         palletBlocks: ['Pallet Receive'],
         noDenBlocks: ['Pallet Receive'],
         jphConfig: {
-            'RC Sort - Total': { processId: '01003009', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort', fetchType: 'uph', label: 'UPH' },
-            'Transfer Out': { processId: '01003021', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' }
+            'Manual Sort -Total': { processId: '01785143512767', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort', fetchType: 'uph', label: 'UPH' },
+            'TO Palletize': { processId: '01785143645486', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' }
         },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Each Receive - Total': '01003027',
             'Receive Support': '01003033',
             'IB Problem Solve': '01002980',
-            'RC Sort - Total': '01003009',
-            'Transfer Out': '01003021',
+            'Manual Sort -Total': '01785143512767',
+            'TO Palletize': '01785143645486',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
@@ -70,11 +70,12 @@
         processLinkMenu: {
             'Transfer Out Dock': [
                 { name: '\uD83D\uDE9A Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
-                { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' }
+                { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
+                { name: '\uD83D\uDEE5\uFE0F IB Dock Tracker', url: 'https://ib-dock-tracker.beta.harmony.a2z.com/' }
             ]
         },
         externalFetch: [
-            { targetProcess: 'RC Sort - Total', processId: '01003009', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
+            { targetProcess: 'Manual Sort -Total', processId: '01785143512767', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
             { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
             { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
         ]
@@ -84,9 +85,9 @@
         id: 'QYY7', color: '#7b2d8b',
         sections: [
             { name: 'INBOUND', processes: ['Receive - Total','Case Transfer In','RSR - Total'] },
-            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','Transfer Out','Transfer Out Dock'] }
+            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','TO Palletize','Transfer Out Dock'] }
         ],
-        hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL','Case Stow to Reserve','Pallet Stow Reserve'],
+        hiddenProcesses: ['IB Total','DA Bldg to Bldg Transfer TOTAL','Case Stow to Reserve','Pallet Stow Reserve','Each Receive - Total','Case Receive'],
         productivity: {
             name: 'PRODUCTIVIDAD QYY7',
             processes: [
@@ -95,25 +96,32 @@
                 { name: 'THROUGHPUT', displayName: 'Throughput' }
             ]
         },
-        casesBlocks: ['Case Transfer In','Transfer Out Pick - Total','Transfer Out'],
+        casesBlocks: ['Case Transfer In','Transfer Out Pick - Total','TO Palletize','Case Receive'],
         jphConfig: {
             'Case Transfer In': { processId: '01003035', defaultPlan: 100, key: 'fclm_jph_qyy7_case_transfer' },
             'RSR - Total': { processId: '01003012', defaultPlan: 100, key: 'fclm_jph_qyy7_rsr' },
             'Transfer Out Pick - Total': { processId: '01003065', defaultPlan: 60, key: 'fclm_jph_qyy7_to_pick' },
-            'Transfer Out': { processId: '01003021', defaultPlan: 60, key: 'fclm_jph_qyy7_transfer_out' }
+            'TO Palletize': { processId: '01785143645486', defaultPlan: 60, key: 'fclm_jph_qyy7_transfer_out' }
         },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Case Transfer In': '01003035',
+            'Each Receive - Total': '01003027',
+            'Case Receive': '01003025',
             'Case Stow to Reserve': '01002968',
             'Pallet Stow Reserve': '01002999',
             'RSR - Total': '01003012',
             'Transfer Out Pick - Total': '01003065',
-            'Transfer Out': '01003021',
+            'TO Palletize': '01785143645486',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
         customPlanConfig: {
+            'Receive - Total': {
+                key: 'fclm_qyy7_receive_plans',
+                title: 'Receive QYY7',
+                subProcesses: ['Each Receive - Total', 'Case Receive']
+            },
             'Case Transfer In': {
                 key: 'fclm_qyy7_case_transfer_plans',
                 title: 'Case Transfer In',
@@ -121,16 +129,22 @@
             }
         },
         processSubMenu: {
+            'Receive - Total': [
+                { name: 'Each Receive - Total', processId: '01003027' },
+                { name: 'Case Receive', processId: '01003025' }
+            ],
             'Case Transfer In': [
                 { name: 'Case Stow to Reserve', processId: '01002968' },
                 { name: 'Pallet Stow Reserve', processId: '01002999' }
             ]
         },
         processLinkMenu: {
-
+            'Case Transfer In': [
+                { name: '\uD83D\uDCFA Stow TV', url: 'https://qyy7-sdc.beta.harmony.a2z.com/stow.html?v=1788807709a49327fa' }
+            ],
             'Transfer Out Dock': [
                 { name: '\uD83D\uDCE6 Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
-                { name: '\uD83D\uDCFA OB Monitor', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' }
+                { name: '\uD83D\uDCFA OB Monitor', url: 'https://rxd-mx.beta.harmony.a2z.com/' }
             ],
             'Transfer Out Pick - Total': [
                 { name: '\uD83D\uDCE6 Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
@@ -140,12 +154,13 @@
         },
         externalFetch: [
             { targetProcess: 'Transfer Out Pick - Total', processId: '01003065', warehouseId: 'QYY7', denOnly: false, valueIndex: 'jobs' },
-            { targetProcess: 'Transfer Out', processId: '1003021', warehouseId: 'QYY7', denOnly: false, valueIndex: 'jobs' },
-            { targetProcess: 'RSR - Total', processId: '01003012', warehouseId: 'QYY7', denOnly: true, valueIndex: 'jobs' }
+            { targetProcess: 'TO Palletize', processId: '01785143645486', warehouseId: 'QYY7', denOnly: false, valueIndex: 'jobs' },
+            { targetProcess: 'RSR - Total', processId: '01003012', warehouseId: 'QYY7', denOnly: true, valueIndex: 'jobs' },
+            { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'QYY7', denOnly: false, valueIndex: 'units' }
         ]
     };
 
-    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive', 'Case Stow to Reserve': '\uD83D\uDCE6 Case Stow', 'Pallet Stow Reserve': '\uD83D\uDCE6 Pallet Stow' };
+    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Manual Sort -Total': 'RC Sort - Total', 'TO Palletize': 'Transfer Out', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive', 'Case Stow to Reserve': '\uD83D\uDCE6 Case Stow', 'Pallet Stow Reserve': '\uD83D\uDCE6 Pallet Stow' };
     let metricsStore = { TLC1: { main: [], productivity: [] }, QYY7: { main: [], productivity: [] } };
     let isMinimized = false;
 
@@ -328,7 +343,7 @@
                         if(nums.length>=6){resolve(nums[5]);return;}
                     } else if(valueType === 'jobsAndUnits'){
                         if(nums.length>=4){resolve({jobs:nums[1], units:nums[3]});return;}
-                    } else if(valueType === 'units'){
+                    } else if(valueType === 'units' || valueType === 'unitsAsVol'){
                         if(nums.length>=4){resolve(nums[3]);return;}
                     } else if(valueType === 'jph'){
                         if(nums.length>=3){resolve(nums[2]);return;}
@@ -371,6 +386,8 @@
                         m.originalVolume = cases.units;
                         m.density = (cases.units != null && cases.jobs > 0) ? parseFloat((cases.units / cases.jobs).toFixed(1)) : null;
                         m.volume = cases.jobs;
+                    } else if(c.valueIndex === 'unitsAsVol'){
+                        m.volume = cases;
                     } else if(c.valueIndex === 'units'){
                         m.casesVolume = m.volume;
                         m.originalVolume = cases;
@@ -802,7 +819,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
                 <span style="color:rgba(255,255,255,0.85);font-size:10px;font-weight:500;">⚡ ${dateStr} — ${timeStr}</span>
-                <div id="fclm-settings-btn" title="Configuración de Planes" style="
+                <div id="fclm-settings-btn" title="Configuración de JPH/UPH" style="
                     width:26px;height:26px;display:flex;align-items:center;justify-content:center;
                     background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);
                     border-radius:6px;color:#ffffff;font-size:14px;
@@ -879,7 +896,6 @@
                         subPanel.className = 'fclm-submenu';
                         subMenuCfg.forEach(sp => {
                             const sm = mm.find(x => x.name === sp.name);
-                            // Apply custom plan override if set
                             if (cpc && sm) {
                                 const saved = JSON.parse(localStorage.getItem(cpc.key) || '{}');
                                 if (saved.mode === 'manual' && saved.plans && saved.plans[sp.name] != null) {
@@ -888,9 +904,23 @@
                                 }
                             }
                             if (!wc.processLinks[sp.name]) wc.processLinks[sp.name] = sp.processId;
-                            const subCard = makeProcessCard(sm, sp.name, false, wc);
+                            const subCard = makeProcessCard(sm, sp.name, wc.casesBlocks.includes(sp.name), wc);
                             subPanel.appendChild(subCard);
                         });
+                        // Add linkMenu items at bottom of submenu (e.g. Stow TV)
+                        const extraLinks = wc.processLinkMenu ? wc.processLinkMenu[pn] : null;
+                        if (extraLinks) {
+                            extraLinks.forEach(lnk => {
+                                const linkBtn = document.createElement('a');
+                                linkBtn.href = lnk.url;
+                                linkBtn.target = '_blank';
+                                linkBtn.textContent = lnk.name;
+                                linkBtn.style.cssText = 'display:block;padding:7px 10px;background:#0f1419;border:1px solid rgba(16,185,129,0.2);border-radius:4px;color:#e5e7eb;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer;transition:all 0.15s ease;text-align:center;';
+                                linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='linear-gradient(135deg,#059669,#10b981)'; linkBtn.style.borderColor='#10b981'; linkBtn.style.color='#ffffff'; });
+                                linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='#0f1419'; linkBtn.style.borderColor='rgba(16,185,129,0.2)'; linkBtn.style.color='#e5e7eb'; });
+                                subPanel.appendChild(linkBtn);
+                            });
+                        }
                         wrap.appendChild(subPanel);
                         secRow.appendChild(wrap);
                     } else if (linkMenuCfg) {
@@ -1191,7 +1221,11 @@
             ]},
             { wh: 'TLC1', title: 'JPH / UPH (TLC1)', items: [
                 { label: 'RC Sort UPH', key: 'fclm_jph_tlc1_rc_sort', defaultVal: 220, type: 'single' },
-                { label: 'Transfer Out JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' }
+                { label: 'Transfer Out (TO Palletize) JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' }
+            ]},
+            { wh: 'QYY7', title: 'RECEIVE (QYY7)', items: [
+                { label: 'Each Receive - Total', key: 'fclm_qyy7_receive_plans', subKey: 'Each Receive - Total', type: 'subplan', defaultVal: 300 },
+                { label: 'Case Receive', key: 'fclm_qyy7_receive_plans', subKey: 'Case Receive', type: 'subplan' }
             ]},
             { wh: 'QYY7', title: 'CASE TRANSFER IN (QYY7)', items: [
                 { label: 'Case Stow to Reserve', key: 'fclm_qyy7_case_transfer_plans', subKey: 'Case Stow to Reserve', type: 'subplan', defaultVal: 100 },
@@ -1201,11 +1235,11 @@
                 { label: 'Case Transfer In', key: 'fclm_jph_qyy7_case_transfer', defaultVal: 100, type: 'single' },
                 { label: 'RSR - Total', key: 'fclm_jph_qyy7_rsr', defaultVal: 100, type: 'single' },
                 { label: 'Transfer Out Pick', key: 'fclm_jph_qyy7_to_pick', defaultVal: 60, type: 'single' },
-                { label: 'Transfer Out', key: 'fclm_jph_qyy7_transfer_out', defaultVal: 60, type: 'single' }
+                { label: 'Transfer Out (TO Palletize)', key: 'fclm_jph_qyy7_transfer_out', defaultVal: 60, type: 'single' }
             ]}
         ];
 
-        let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-weight:700;font-size:15px;color:#10b981;">\u2699\uFE0F Configuraci\u00F3n de Planes</span><span id="fclm-settings-close" style="cursor:pointer;font-size:20px;color:#6b7280;transition:color 0.2s;">\u2715</span></div>';
+        let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-weight:700;font-size:15px;color:#10b981;">\u2699\uFE0F Configuraci\u00F3n de JPH/UPH</span><span id="fclm-settings-close" style="cursor:pointer;font-size:20px;color:#6b7280;transition:color 0.2s;">\u2715</span></div>';
 
         allConfigs.forEach(section => {
             const whColor = section.wh === 'TLC1' ? '#0073bb' : '#7b2d8b';
