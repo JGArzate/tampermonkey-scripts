@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      4.7
+// @version      4.8
 // @description  Transfer Out toma TO Palletize del PPR + externo 01785143645486
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '4.7';
+    const SCRIPT_VERSION = '4.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
