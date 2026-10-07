@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      5.0
-// @description  Transfer Out - Total sin link externo en bloque principal
+// @version      5.1
+// @description  Retirar Rates + agregar Engage y Troubleshoot
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '5.0';
+    const SCRIPT_VERSION = '5.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1023,7 +1023,8 @@
         footerRow.appendChild(mkBtn('\uD83D\uDC65 Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
         footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('\uD83D\uDCCA Rates','https://fclm-portal.amazon.com/reports/multiProcessInspector?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDCAC Engage','https://atoz.amazon.work/engage/conversation-hub?f=NrBEHkDkH0AUCUCiBZAkgZUaANAb1AG4CGANgK4CmoAXKAC4BOloAvgLptA'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD27 Troubleshoot','https://trans-logistics.amazon.com/sortcenter/tantei?nodeId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://qi-fcresearch-na.corp.amazon.com/TLC1/results?s='));
         footerRow.appendChild(mkBtn('\uD83D\uDCF1 Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
