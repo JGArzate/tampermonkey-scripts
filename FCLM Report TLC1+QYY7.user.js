@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         FCLM Report TLC1+QYY7
 // @namespace    http://tampermonkey.net/
-// @version      4.8
-// @description  Elegir Pickers URL actualizada a eligibility.us-east-1-prod
+// @version      5.0
+// @description  Transfer Out - Total sin link externo en bloque principal
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '4.8';
+    const SCRIPT_VERSION = '5.0';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -24,9 +24,9 @@
         id: 'TLC1', color: '#0073bb',
         sections: [
             { name: 'INBOUND', processes: ['Receive - Total','Receive Support','IB Problem Solve'] },
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','TO Palletize','Transfer Out Dock'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock'] }
         ],
-        hiddenProcesses: ['Each Receive - Total','Case Receive','Pallet Receive','Prep Recorder - Total','IB Total','DA Bldg to Bldg Transfer TOTAL'],
+        hiddenProcesses: ['Each Receive - Total','Case Receive','Pallet Receive','Prep Recorder - Total','IB Total','DA Bldg to Bldg Transfer TOTAL','TO Palletize','TO RWC'],
         productivity: {
             name: 'PRODUCTIVIDAD TLC1',
             processes: [
@@ -35,12 +35,14 @@
                 { name: 'THROUGHPUT', displayName: 'Throughput' }
             ]
         },
-        casesBlocks: ['Case Receive','Pallet Receive'],
+        casesBlocks: ['Case Receive','Pallet Receive','TO RWC'],
         palletBlocks: ['Pallet Receive'],
-        noDenBlocks: ['Pallet Receive'],
+        toteBlocks: ['TO RWC'],
+        noDenBlocks: ['Pallet Receive','TO RWC'],
         jphConfig: {
             'Manual Sort -Total': { processId: '01785143512767', defaultPlan: 220, key: 'fclm_jph_tlc1_rc_sort', fetchType: 'uph', label: 'UPH' },
-            'TO Palletize': { processId: '01785143645486', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' }
+            'TO Palletize': { processId: '01785143645486', defaultPlan: 55, key: 'fclm_jph_tlc1_transfer_out' },
+            'TO RWC': { processId: '01785143680335', defaultPlan: 60, key: 'fclm_jph_tlc1_to_rwc' }
         },
         deltaHrsMap: { 'Inbound': 'IB Total', 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
@@ -49,6 +51,7 @@
             'IB Problem Solve': '01002980',
             'Manual Sort -Total': '01785143512767',
             'TO Palletize': '01785143645486',
+            'TO RWC': '01785143680335',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
@@ -65,6 +68,10 @@
                 { name: 'Case Receive', processId: '01003025' },
                 { name: 'Pallet Receive', processId: '01003032' },
                 { name: 'Prep Recorder - Total', processId: '01003002' }
+            ],
+            'Transfer Out - Total': [
+                { name: 'TO Palletize', processId: '01785143645486' },
+                { name: 'TO RWC', processId: '01785143680335' }
             ]
         },
         processLinkMenu: {
@@ -77,7 +84,8 @@
         externalFetch: [
             { targetProcess: 'Manual Sort -Total', processId: '01785143512767', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
             { targetProcess: 'Case Receive', processId: '01003025', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
-            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
+            { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
+            { targetProcess: 'TO RWC', processId: '01785143680335', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
         ]
     };
 
@@ -112,7 +120,9 @@
             'Pallet Stow Reserve': '01002999',
             'RSR - Total': '01003012',
             'Transfer Out Pick - Total': '01003065',
+            'Transfer Out - Total': '01003021',
             'TO Palletize': '01785143645486',
+            'TO RWC': '01785143680335',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
@@ -160,7 +170,7 @@
         ]
     };
 
-    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Manual Sort -Total': 'RC Sort - Total', 'TO Palletize': 'Transfer Out', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive', 'Case Stow to Reserve': '\uD83D\uDCE6 Case Stow', 'Pallet Stow Reserve': '\uD83D\uDCE6 Pallet Stow' };
+    const DISPLAY_NAMES = { 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg', 'Manual Sort -Total': 'RC Sort - Total', 'Case Receive': '\uD83D\uDCE6 Case Receive', 'Pallet Receive': '\uD83D\uDCE6 Pallet Receive', 'Case Stow to Reserve': '\uD83D\uDCE6 Case Stow', 'Pallet Stow Reserve': '\uD83D\uDCE6 Pallet Stow' };
     let metricsStore = { TLC1: { main: [], productivity: [] }, QYY7: { main: [], productivity: [] } };
     let isMinimized = false;
 
@@ -539,7 +549,8 @@
 
             let volHTML = '';
             if (hasCasesVol) {
-                const cLabel = isPallet ? 'Pallets / Vol' : 'Cases / Vol';
+                const isTote = whConfig && whConfig.toteBlocks && whConfig.toteBlocks.includes(pn);
+                const cLabel = isTote ? 'Totes / Vol' : (isPallet ? 'Pallets / Vol' : 'Cases / Vol');
                 const denBlock = noDen ? '' : '<div style="width:1px;background:#374151;align-self:stretch;"></div><div style="text-align:center;flex:0.8;"><div style="color:#9ca3af;font-size:7px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Den</div><div style="color:'+th.accent+';font-weight:700;font-size:9.5px;white-space:nowrap;">'+(m.density != null ? m.density : '\u2014')+'</div></div>';
                 volHTML = `
                     <div style="text-align:center;flex:1.5;">
@@ -1221,7 +1232,8 @@
             ]},
             { wh: 'TLC1', title: 'JPH / UPH (TLC1)', items: [
                 { label: 'RC Sort UPH', key: 'fclm_jph_tlc1_rc_sort', defaultVal: 220, type: 'single' },
-                { label: 'Transfer Out (TO Palletize) JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' }
+                { label: 'TO Palletize JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' },
+                { label: 'TO RWC JPH', key: 'fclm_jph_tlc1_to_rwc', defaultVal: 60, type: 'single' }
             ]},
             { wh: 'QYY7', title: 'RECEIVE (QYY7)', items: [
                 { label: 'Each Receive - Total', key: 'fclm_qyy7_receive_plans', subKey: 'Each Receive - Total', type: 'subplan', defaultVal: 300 },
