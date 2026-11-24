@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.7
-// @description  Transfer Out Dock TLC1 restaurado, botones con emoji y a todo el ancho, Pallet Receive centrado bajo productividad
+// @version      1.8
+// @description  Bloques TLC1 reordenados en 2 filas y hover azul en los botones
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,14 +16,15 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.7';
+    const SCRIPT_VERSION = '1.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock','TO Palletize','TO RWC','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','TO Palletize','TO RWC','Transfer Out - Total'] },
+            { name: 'OUTBOUND2', processes: ['TO Lead/PA','TO Problem Solve','Transfer Out Support','Transfer Out Dock'] }
         ],
         hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','Pallet Receive'],
         productivity: {
@@ -414,8 +415,8 @@
             const a = document.createElement('a');
             a.href = href; a.target = '_blank'; a.textContent = lnk.name;
             a.style.cssText = 'flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:10.5px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s ease;';
-            a.addEventListener('mouseenter', function() { a.style.background = 'rgba(255,255,255,0.18)'; });
-            a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; });
+            a.addEventListener('mouseenter', function() { a.style.background = '#0a84ff'; a.style.color = '#ffffff'; });
+            a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; a.style.color = '#f5f5f7'; });
             row.appendChild(a);
         });
         return row.childNodes.length ? row : null;
@@ -464,7 +465,7 @@
                 border:1px solid rgba(255,255,255,0.08);
                 border-radius:12px;
                 padding:6px 9px;
-                flex:1 1 23%; min-width:0;
+                flex:1 1 0; min-width:0;
                 display:flex; flex-direction:column; gap:4px;
             `;
 
@@ -534,7 +535,7 @@
         } else {
             card.style.cssText = `
                 background:${T.na.bg};border:1px solid rgba(255,255,255,0.06);border-radius:12px;
-                padding:6px 9px;flex:1 1 23%;min-width:0;
+                padding:6px 9px;flex:1 1 0;min-width:0;
                 display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;
             `;
             card.innerHTML = `
@@ -611,7 +612,7 @@
             const mm=metricsStore[wc.id].main, pm=metricsStore[wc.id].productivity;
             rows.push('',`===== ${wc.id} =====`);
             wc.sections.forEach(sec=>{
-                rows.push('--- '+sec.name+' '+wc.id+' ---');
+                rows.push('--- '+sec.name.replace('OUTBOUND2','OUTBOUND')+' '+wc.id+' ---');
                 sec.processes.forEach(pn=>{
                     const m=mm.find(x=>x.name===pn), dn=DISPLAY_NAMES[pn]||pn;
                     if(m){
@@ -620,9 +621,9 @@
                         if(m.casesVolume != null && m.originalVolume != null){
                             extraCols = ',' + m.casesVolume + ',' + m.originalVolume;
                         }
-                        rows.push([wc.id,sec.name,dn,vol||'',m.actualRate||'',m.planRate||'',m.percentToPlan!=null?m.percentToPlan+'%':'',m.deltaToPlanHrs||''].join(','));
+                        rows.push([wc.id,sec.name.replace('OUTBOUND2','OUTBOUND'),dn,vol||'',m.actualRate||'',m.planRate||'',m.percentToPlan!=null?m.percentToPlan+'%':'',m.deltaToPlanHrs||''].join(','));
                     }
-                    else rows.push([wc.id,sec.name,dn,'','','','',''].join(','));
+                    else rows.push([wc.id,sec.name.replace('OUTBOUND2','OUTBOUND'),dn,'','','','',''].join(','));
                 });
             });
             rows.push(`--- ${wc.productivity.name} ---`);
@@ -786,7 +787,7 @@
 
             wc.sections.forEach((sec, si) => {
                 const secRow = document.createElement('div');
-                secRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;flex:1;min-width:0;';
+                secRow.style.cssText = 'display:flex;flex-wrap:nowrap;align-items:stretch;gap:6px;flex:1;min-width:0;';
 
                 sec.processes.forEach(pn => {
                     const m = mm.find(x => x.name === pn);
@@ -862,7 +863,7 @@
         const footerRow = document.createElement('div');
         footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
         const footerBtnStyle = 'background:rgba(255,255,255,0.07);border:none;color:#f5f5f7;border-radius:980px;padding:6px 14px;cursor:pointer;font-size:11px;font-weight:500;font-family:inherit;white-space:nowrap;';
-        function addHover(b){ b.className='fclm-btn'; b.addEventListener('mouseenter',()=>{b.style.background='rgba(255,255,255,0.16)';}); b.addEventListener('mouseleave',()=>{b.style.background='rgba(255,255,255,0.07)';}); }
+        function addHover(b){ b.className='fclm-btn'; b.addEventListener('mouseenter',()=>{b.style.background='#0a84ff';b.style.color='#ffffff';}); b.addEventListener('mouseleave',()=>{b.style.background='rgba(255,255,255,0.07)';b.style.color='#f5f5f7';}); }
         function mkBtn(txt,action){
             const b=document.createElement('button');
             b.textContent=txt;
@@ -902,14 +903,14 @@
         // Settings button
         const settingsBtn = banner.querySelector('#fclm-settings-btn');
         if (settingsBtn) {
-            settingsBtn.addEventListener('mouseenter', () => { settingsBtn.style.background='rgba(255,255,255,0.16)'; });
+            settingsBtn.addEventListener('mouseenter', () => { settingsBtn.style.background='#0a84ff'; });
             settingsBtn.addEventListener('mouseleave', () => { settingsBtn.style.background='rgba(255,255,255,0.08)'; });
             settingsBtn.addEventListener('click', () => { openSettingsPanel(); });
         }
 
         const minBtn = banner.querySelector('#fclm-min-btn');
         if (minBtn) {
-            minBtn.addEventListener('mouseenter', () => { minBtn.style.background='rgba(255,255,255,0.16)'; });
+            minBtn.addEventListener('mouseenter', () => { minBtn.style.background='#0a84ff'; });
             minBtn.addEventListener('mouseleave', () => { minBtn.style.background='rgba(255,255,255,0.08)'; });
             minBtn.addEventListener('click', () => {
                 const origin = getPillOrigin();
@@ -1265,7 +1266,7 @@
         if (!document.getElementById('fclm-update-styles')) {
             const style = document.createElement('style');
             style.id = 'fclm-update-styles';
-            style.textContent = `.fclm-update-banner{position:fixed;top:14px;right:14px;background:rgba(10,10,12,0.96);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:12px 14px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;gap:14px;animation:fclmSlideIn .3s ease-out forwards;max-width:340px}.fclm-update-banner.hide{animation:fclmSlideOut .3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(-12px);opacity:0}}.fclm-update-content{flex:1;line-height:1.35}.fclm-update-title{font-weight:600;font-size:12px}.fclm-update-version{font-size:11px;color:#8e8e93}.fclm-update-buttons{display:flex;gap:6px;align-items:center;white-space:nowrap}.fclm-update-btn{padding:5px 12px;border:none;border-radius:980px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:background .15s ease}.fclm-update-btn.update{background:#0a84ff;color:#fff}.fclm-update-btn.update:hover{background:#409cff}.fclm-update-btn.dismiss{background:rgba(255,255,255,0.08);color:#aeaeb2;width:24px;height:24px;padding:0;font-size:12px}.fclm-update-btn.dismiss:hover{background:rgba(255,255,255,0.16)}`;
+            style.textContent = `.fclm-update-banner{position:fixed;top:14px;right:14px;background:rgba(10,10,12,0.96);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:12px 14px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;gap:14px;animation:fclmSlideIn .3s ease-out forwards;max-width:340px}.fclm-update-banner.hide{animation:fclmSlideOut .3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(-12px);opacity:0}}.fclm-update-content{flex:1;line-height:1.35}.fclm-update-title{font-weight:600;font-size:12px}.fclm-update-version{font-size:11px;color:#8e8e93}.fclm-update-buttons{display:flex;gap:6px;align-items:center;white-space:nowrap}.fclm-update-btn{padding:5px 12px;border:none;border-radius:980px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:background .15s ease}.fclm-update-btn.update{background:#0a84ff;color:#fff}.fclm-update-btn.update:hover{background:#409cff}.fclm-update-btn.dismiss{background:rgba(255,255,255,0.08);color:#aeaeb2;width:24px;height:24px;padding:0;font-size:12px}.fclm-update-btn.dismiss:hover{background:#0a84ff;color:#fff}`;
             document.head.appendChild(style);
         }
         const banner = document.createElement('div');
