@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.6
-// @description  Pallet Receive: el parámetro Jobs cambia a Units (EACH UNIT de la liga externa 01003032)
+// @version      1.7
+// @description  Transfer Out Dock TLC1 restaurado, botones con emoji y a todo el ancho, Pallet Receive centrado bajo productividad
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,14 +16,14 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.6';
+    const SCRIPT_VERSION = '1.7';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','TO Palletize','TO RWC','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock','TO Palletize','TO RWC','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
         ],
         hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','Pallet Receive'],
         productivity: {
@@ -46,6 +46,7 @@
             'Manual Sort -Total': '01785143512767',
             'TO Palletize': '01785143645486',
             'TO RWC': '01785143680335',
+            'Transfer Out Dock': '01003022',
             'Transfer Out Support': '01785144518570',
             'TO Lead/PA': '01003023',
             'TO Problem Solve': '01002985'
@@ -55,12 +56,12 @@
         processSubMenu: {},
         processLinkMenu: {
             'Manual Sort -Total': [
-                { name: 'Detalle RC Sort', processId: '01785143618796' }
+                { name: '\uD83D\uDD0E Detalle RC Sort', processId: '01785143618796' }
             ],
-            'Transfer Out - Total': [
-                { name: 'Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
-                { name: 'Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
-                { name: 'IB Dock Tracker', url: 'https://ib-dock-tracker.beta.harmony.a2z.com/' }
+            'Transfer Out Dock': [
+                { name: '\uD83D\uDE9A Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
+                { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
+                { name: '\uD83D\uDEE5\uFE0F IB Dock Tracker', url: 'https://ib-dock-tracker.beta.harmony.a2z.com/' }
             ]
         },
         externalFetch: [
@@ -99,13 +100,13 @@
         processSubMenu: {},
         processLinkMenu: {
             'Transfer Out Dock': [
-                { name: 'Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
-                { name: 'OB Monitor', url: 'https://rxd-mx.beta.harmony.a2z.com/' }
+                { name: '\uD83D\uDCE6 Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
+                { name: '\uD83D\uDCFA OB Monitor', url: 'https://rxd-mx.beta.harmony.a2z.com/' }
             ],
             'Transfer Out Pick - Total': [
-                { name: 'Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
-                { name: 'Elegir Pickers', url: 'https://eligibility.us-east-1-prod.picking.aft.amazon.dev/QYY7/picker-eligibilities' },
-                { name: 'Pick Console', url: 'https://picking-console.na.picking.aft.a2z.com/fc/QYY7/pick-workforce' }
+                { name: '\uD83D\uDCCA Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
+                { name: '\uD83D\uDC64 Elegir Pickers', url: 'https://eligibility.us-east-1-prod.picking.aft.amazon.dev/QYY7/picker-eligibilities' },
+                { name: '\uD83C\uDFAF Pick Console', url: 'https://picking-console.na.picking.aft.a2z.com/fc/QYY7/pick-workforce' }
             ]
         },
         externalFetch: [
@@ -406,13 +407,13 @@
         const items = (whConfig && whConfig.processLinkMenu && whConfig.processLinkMenu[pn]) ? whConfig.processLinkMenu[pn] : [];
         if (!items.length) return null;
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:1px;';
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;width:100%;';
         items.forEach(function(lnk) {
             const href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, whConfig.id) : lnk.url) || '';
             if (!href) return;
             const a = document.createElement('a');
             a.href = href; a.target = '_blank'; a.textContent = lnk.name;
-            a.style.cssText = 'padding:2px 8px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:9px;font-weight:500;text-decoration:none;white-space:nowrap;transition:background .15s ease;';
+            a.style.cssText = 'flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:10.5px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s ease;';
             a.addEventListener('mouseenter', function() { a.style.background = 'rgba(255,255,255,0.18)'; });
             a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; });
             row.appendChild(a);
@@ -463,7 +464,7 @@
                 border:1px solid rgba(255,255,255,0.08);
                 border-radius:12px;
                 padding:6px 9px;
-                flex:1 1 30%; min-width:0;
+                flex:1 1 23%; min-width:0;
                 display:flex; flex-direction:column; gap:4px;
             `;
 
@@ -533,7 +534,7 @@
         } else {
             card.style.cssText = `
                 background:${T.na.bg};border:1px solid rgba(255,255,255,0.06);border-radius:12px;
-                padding:6px 9px;flex:1 1 30%;min-width:0;
+                padding:6px 9px;flex:1 1 23%;min-width:0;
                 display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;
             `;
             card.innerHTML = `
@@ -807,7 +808,7 @@
             whBlock.appendChild(vSep);
 
             const prodPanel = document.createElement('div');
-            prodPanel.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;width:330px;justify-content:center;';
+            prodPanel.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;width:280px;justify-content:center;';
             const prodTitle = document.createElement('div');
             prodTitle.style.cssText = `color:#8e8e93;font-size:9px;font-weight:600;letter-spacing:0.6px;text-align:left;text-transform:uppercase;`;
             prodTitle.textContent = wc.productivity.name;
@@ -829,6 +830,7 @@
                 }
                 prodRow.appendChild(makeProdCard(m, proc, dHrs, customTarget));
             });
+            prodPanel.appendChild(prodRow);
             if (wc.id === 'TLC1') {
                 const pr = mm.find(x => x.name === 'Pallet Receive');
                 const pallets = pr ? pr.volume : null;
@@ -838,15 +840,15 @@
                 const pc = document.createElement('div');
                 pc.className = 'fclm-card';
                 pc.id = 'fclm-pallet-info';
-                pc.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:7px 9px;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;';
+                pc.style.cssText = 'align-self:center;width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;';
                 pc.innerHTML = '<div style="color:#aeaeb2;font-weight:500;font-size:10px;">Pallet Receive</div>'
                     + '<div style="display:flex;gap:14px;align-items:flex-end;">'
                     + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(pallets) + '</div><div style="' + lb + '">Pallets</div></div>'
                     + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(units) + '</div><div style="' + lb + '">Units</div></div>'
                     + '</div>';
-                prodRow.appendChild(pc);
+                prodPanel.appendChild(pc);
             }
-            prodPanel.appendChild(prodRow);
+
             whBlock.appendChild(prodPanel);
             contentWrap.appendChild(whBlock);
 
@@ -858,8 +860,8 @@
         });
 
         const footerRow = document.createElement('div');
-        footerRow.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
-        const footerBtnStyle = 'background:rgba(255,255,255,0.07);border:none;color:#f5f5f7;border-radius:980px;padding:4px 12px;cursor:pointer;font-size:10px;font-weight:500;font-family:inherit;white-space:nowrap;';
+        footerRow.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:6px;flex:1;flex-wrap:wrap;';
+        const footerBtnStyle = 'background:rgba(255,255,255,0.07);border:none;color:#f5f5f7;border-radius:980px;padding:6px 14px;cursor:pointer;font-size:11px;font-weight:500;font-family:inherit;white-space:nowrap;';
         function addHover(b){ b.className='fclm-btn'; b.addEventListener('mouseenter',()=>{b.style.background='rgba(255,255,255,0.16)';}); b.addEventListener('mouseleave',()=>{b.style.background='rgba(255,255,255,0.07)';}); }
         function mkBtn(txt,action){
             const b=document.createElement('button');
@@ -871,21 +873,21 @@
             return b;
         }
 
-        footerRow.appendChild(mkBtn('Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('Time Card','https://atoz.amazon.work/timecard/managerView/'));
-        footerRow.appendChild(mkBtn('Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('Engage','https://atoz.amazon.work/engage/conversation-hub?f=NrBEHkDkH0AUCUCiBZAkgZUaANAb1AG4CGANgK4CmoAXKAC4BOloAvgLptA'));
-        footerRow.appendChild(mkBtn('Troubleshoot','https://trans-logistics.amazon.com/sortcenter/tantei?nodeId=TLC1'));
-        footerRow.appendChild(mkBtn('Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
-        footerRow.appendChild(mkBtn('FC Research','https://qi-fcresearch-na.corp.amazon.com/TLC1/results?s='));
-        footerRow.appendChild(mkBtn('Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
+        footerRow.appendChild(mkBtn('\uD83D\uDC65 Asistencia AA','https://fclm-portal.amazon.com/reports/ppaAttendance?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD52 Time Card','https://atoz.amazon.work/timecard/managerView/'));
+        footerRow.appendChild(mkBtn('\u23F1\uFE0F Tiempo Muerto','https://fclm-portal.amazon.com/reports/timeOnTask?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDCAC Engage','https://atoz.amazon.work/engage/conversation-hub?f=NrBEHkDkH0AUCUCiBZAkgZUaANAb1AG4CGANgK4CmoAXKAC4BOloAvgLptA'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD27 Troubleshoot','https://trans-logistics.amazon.com/sortcenter/tantei?nodeId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
+        footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://qi-fcresearch-na.corp.amazon.com/TLC1/results?s='));
+        footerRow.appendChild(mkBtn('\uD83D\uDCF1 Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
 
         const footerWrap = document.createElement('div');
-        footerWrap.style.cssText = 'display:flex;align-items:center;gap:8px;padding-top:2px;';
+        footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;';
 
         const btnDL = document.createElement('button');
-        btnDL.textContent = 'Descargar Excel';
-        btnDL.style.cssText = 'background:#0a84ff;border:none;color:#ffffff;border-radius:980px;padding:4px 14px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .15s ease;';
+        btnDL.textContent = '\u2B07\uFE0F Descargar Excel';
+        btnDL.style.cssText = 'background:#0a84ff;border:none;color:#ffffff;border-radius:980px;padding:6px 16px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .15s ease;';
         btnDL.addEventListener('mouseenter',()=>{btnDL.style.background='#409cff';});
         btnDL.addEventListener('mouseleave',()=>{btnDL.style.background='#0a84ff';});
         btnDL.addEventListener('click', exportToCSV);
