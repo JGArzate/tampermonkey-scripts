@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.4
-// @description  Fondo negro Apple, sin etiqueta OUTBOUND, bloque Pallet Receive (Pallets/Jobs) en productividad y liga corregida de TO Support
+// @version      1.6
+// @description  Pallet Receive: el parámetro Jobs cambia a Units (EACH UNIT de la liga externa 01003032)
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,16 +16,16 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.4';
+    const SCRIPT_VERSION = '1.6';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','TO Palletize','TO RWC','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
         ],
-        hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','TO Palletize','TO RWC','Pallet Receive'],
+        hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','Pallet Receive'],
         productivity: {
             name: 'PRODUCTIVIDAD TLC1',
             processes: [
@@ -46,33 +46,26 @@
             'Manual Sort -Total': '01785143512767',
             'TO Palletize': '01785143645486',
             'TO RWC': '01785143680335',
-            'Transfer Out Dock': '01003022',
             'Transfer Out Support': '01785144518570',
             'TO Lead/PA': '01003023',
             'TO Problem Solve': '01002985'
         },
         processDropdowns: {},
         customPlanConfig: {},
-        processSubMenu: {
-            'Transfer Out - Total': [
-                { name: 'TO Palletize', processId: '01785143645486' },
-                { name: 'TO RWC', processId: '01785143680335' }
-            ]
-        },
+        processSubMenu: {},
         processLinkMenu: {
             'Manual Sort -Total': [
                 { name: 'Detalle RC Sort', processId: '01785143618796' }
             ],
-            'Transfer Out Dock': [
-                { name: '\uD83D\uDE9A Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
-                { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
-                { name: '\uD83D\uDEE5\uFE0F IB Dock Tracker', url: 'https://ib-dock-tracker.beta.harmony.a2z.com/' }
+            'Transfer Out - Total': [
+                { name: 'Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
+                { name: 'Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
+                { name: 'IB Dock Tracker', url: 'https://ib-dock-tracker.beta.harmony.a2z.com/' }
             ]
         },
         externalFetch: [
             { targetProcess: 'Manual Sort -Total', processId: '01785143512767', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
             { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
-            { targetProcess: 'Pallet Receive Jobs', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' },
             { targetProcess: 'TO RWC', processId: '01785143680335', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
         ]
     };
@@ -106,13 +99,13 @@
         processSubMenu: {},
         processLinkMenu: {
             'Transfer Out Dock': [
-                { name: '\uD83D\uDCE6 Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
-                { name: '\uD83D\uDCFA OB Monitor', url: 'https://rxd-mx.beta.harmony.a2z.com/' }
+                { name: 'Descargas', url: 'https://trans-logistics.amazon.com/ssp/dock/hrz/ob?' },
+                { name: 'OB Monitor', url: 'https://rxd-mx.beta.harmony.a2z.com/' }
             ],
             'Transfer Out Pick - Total': [
-                { name: '\uD83D\uDCE6 Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
-                { name: '\uD83D\uDC64 Elegir Pickers', url: 'https://eligibility.us-east-1-prod.picking.aft.amazon.dev/QYY7/picker-eligibilities' },
-                { name: '\uD83C\uDFAF Pick Console', url: 'https://picking-console.na.picking.aft.a2z.com/fc/QYY7/pick-workforce' }
+                { name: 'Rodeo', url: 'https://rodeo-iad.amazon.com/QYY7/ExSD?yAxis=PROCESS_PATH&zAxis=WORK_POOL&shipmentTypes=TRANSSHIPMENTS&exSDRange.quickRange=ALL&exSDRange.dailyStart=00%3A00&exSDRange.dailyEnd=00%3A00&giftOption=ALL&fulfillmentServiceClass=ALL&fracs=ALL&isEulerExSDMiss=ALL&isEulerPromiseMiss=ALL&isEulerUpgraded=ALL&isReactiveTransfer=ALL&_workPool=on&workPool=ReadyToPick&workPool=ReadyToPickHardCapped&workPool=ReadyToPickUnconstrained&workPool=PickingNotYetPicked&workPool=PickingNotYetPickedPrioritized&workPool=PickingNotYetPickedNotPrioritized&workPool=PickingNotYetPickedHardCapped&workPool=CrossdockNotYetPicked&_workPool=on&workPool=PickingPicked&workPool=PickingPickedInProgress&workPool=PickingPickedInTransit&workPool=PickingPickedRouting&workPool=PickingPickedAtDestination&workPool=Inducted&workPool=RebinBuffered&workPool=Sorted&workPool=GiftWrap&workPool=Packing&workPool=Scanned&workPool=ProblemSolving&workPool=ProcessPartial&workPool=SoftwareException&workPool=Crossdock&workPool=PreSort&workPool=TransshipSorted&workPool=Palletized&_workPool=on&workPool=ManifestPending&workPool=ManifestPendingVerification&workPool=Manifested&workPool=Loaded&workPool=TransshipManifested&_workPool=on&processPath=&minPickPriority=MIN_PRIORITY&shipMethod=&shipOption=&sortCode=&fnSku=' },
+                { name: 'Elegir Pickers', url: 'https://eligibility.us-east-1-prod.picking.aft.amazon.dev/QYY7/picker-eligibilities' },
+                { name: 'Pick Console', url: 'https://picking-console.na.picking.aft.a2z.com/fc/QYY7/pick-workforce' }
             ]
         },
         externalFetch: [
@@ -303,12 +296,6 @@
         const config = whId === 'QYY7' ? QYY7_CONFIG : TLC1_CONFIG;
 
         for(let c of config.externalFetch){
-            if (c.targetProcess === 'Pallet Receive Jobs') {
-                const pm0 = metrics.find(x => x.name === 'Pallet Receive');
-                const jv = extVals[whId + '_' + c.targetProcess];
-                if (pm0 && jv != null) pm0.palletJobs = jv;
-                continue;
-            }
             const cases = extVals[whId + '_' + c.targetProcess];
             if(cases != null){
                 const m = metrics.find(m => m.name === c.targetProcess);
@@ -415,6 +402,24 @@
     function fmtPct(v){ return v!=null ? v.toFixed(1)+'%' : '—'; }
 
 
+    function buildLinkButtons(pn, whConfig) {
+        const items = (whConfig && whConfig.processLinkMenu && whConfig.processLinkMenu[pn]) ? whConfig.processLinkMenu[pn] : [];
+        if (!items.length) return null;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:1px;';
+        items.forEach(function(lnk) {
+            const href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, whConfig.id) : lnk.url) || '';
+            if (!href) return;
+            const a = document.createElement('a');
+            a.href = href; a.target = '_blank'; a.textContent = lnk.name;
+            a.style.cssText = 'padding:2px 8px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:9px;font-weight:500;text-decoration:none;white-space:nowrap;transition:background .15s ease;';
+            a.addEventListener('mouseenter', function() { a.style.background = 'rgba(255,255,255,0.18)'; });
+            a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; });
+            row.appendChild(a);
+        });
+        return row.childNodes.length ? row : null;
+    }
+
     function makeProcessCard(m, pn, isCase, whConfig) {
         const dn = DISPLAY_NAMES[pn] || pn;
         const processId = whConfig && whConfig.processLinks ? whConfig.processLinks[pn] : null;
@@ -422,9 +427,9 @@
         const dropdown = whConfig && whConfig.processDropdowns ? whConfig.processDropdowns[pn] : null;
         const subMenu = whConfig && whConfig.processSubMenu ? whConfig.processSubMenu[pn] : null;
         let linkBtn = '';
-        if (subMenu && linkURL) {
+        if (false && subMenu && linkURL) {
             linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:10px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;">\u2197\uFE0F</a><span style="font-size:9px;margin-left:2px;opacity:0.7;cursor:default;">\u25BC</span>`;
-        } else if (subMenu) {
+        } else if (false && subMenu) {
             linkBtn = `<span style="font-size:8px;margin-left:4px;opacity:0.5;cursor:default;">\u25BC</span>`;
         } else if (dropdown && dropdown.length > 0) {
             const ddId = 'fclm-dd-' + pn.replace(/[^a-zA-Z0-9]/g, '') + '-' + whConfig.id;
@@ -536,6 +541,9 @@
                 <div style="color:#636366;font-size:9px;">sin datos</div>
             `;
         }
+
+        const linkRow = buildLinkButtons(pn, whConfig);
+        if (linkRow) card.appendChild(linkRow);
 
         return card;
     }
@@ -782,75 +790,7 @@
                 sec.processes.forEach(pn => {
                     const m = mm.find(x => x.name === pn);
                     const isCase = wc.casesBlocks.includes(pn);
-                    const subMenuCfg = wc.processSubMenu ? wc.processSubMenu[pn] : null;
-
-                    const linkMenuCfg = wc.processLinkMenu ? wc.processLinkMenu[pn] : null;
-
-                    if (subMenuCfg) {
-                        const wrap = document.createElement('div');
-                        wrap.className = 'fclm-submenu-wrap';
-                        wrap.style.cssText = 'position:relative;flex:1 1 30%;min-width:0;display:flex;flex-direction:column;';
-
-                        const mainCard = makeProcessCard(m, pn, isCase, wc);
-                        // Add gear icon for customPlanConfig processes
-                        const cpc = wc.customPlanConfig ? wc.customPlanConfig[pn] : null;
-
-                        wrap.appendChild(mainCard);
-
-                        const subPanel = document.createElement('div');
-                        subPanel.className = 'fclm-submenu';
-                        subMenuCfg.forEach(sp => {
-                            const sm = mm.find(x => x.name === sp.name);
-                            if (cpc && sm) {
-                                const saved = JSON.parse(localStorage.getItem(cpc.key) || '{}');
-                                if (saved.mode === 'manual' && saved.plans && saved.plans[sp.name] != null) {
-                                    sm.planRate = saved.plans[sp.name];
-                                    sm.percentToPlan = sm.planRate > 0 ? (sm.actualRate / sm.planRate) * 100 : 0;
-                                }
-                            }
-                            if (!wc.processLinks[sp.name]) wc.processLinks[sp.name] = sp.processId;
-                            const subCard = makeProcessCard(sm, sp.name, wc.casesBlocks.includes(sp.name), wc);
-                            subPanel.appendChild(subCard);
-                        });
-                        // Links extra al final del submenu
-                        const extraLinks = wc.processLinkMenu ? wc.processLinkMenu[pn] : null;
-                        if (extraLinks) {
-                            extraLinks.forEach(lnk => {
-                                const linkBtn = document.createElement('a');
-                                linkBtn.href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, wc.id) : lnk.url) || '#';
-                                linkBtn.target = '_blank';
-                                linkBtn.textContent = lnk.name;
-                                linkBtn.style.cssText = 'display:block;padding:7px 10px;background:transparent;border:none;border-radius:8px;color:#f5f5f7;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;transition:background .15s ease;text-align:left;';
-                                linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='rgba(255,255,255,0.10)'; });
-                                linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='transparent'; });
-                                subPanel.appendChild(linkBtn);
-                            });
-                        }
-                        wrap.appendChild(subPanel);
-                        secRow.appendChild(wrap);
-                    } else if (linkMenuCfg) {
-                        const wrap = document.createElement('div');
-                        wrap.className = 'fclm-submenu-wrap';
-                        wrap.style.cssText = 'position:relative;flex:1 1 30%;min-width:0;display:flex;flex-direction:column;';
-                        wrap.appendChild(makeProcessCard(m, pn, isCase, wc));
-
-                        const linkPanel = document.createElement('div');
-                        linkPanel.className = 'fclm-submenu';
-                        linkMenuCfg.forEach(lnk => {
-                            const linkBtn = document.createElement('a');
-                            linkBtn.href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, wc.id) : lnk.url) || '#';
-                            linkBtn.target = '_blank';
-                            linkBtn.textContent = lnk.name;
-                            linkBtn.style.cssText = 'display:block;padding:7px 10px;background:transparent;border:none;border-radius:8px;color:#f5f5f7;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;transition:background .15s ease;text-align:left;';
-                            linkBtn.addEventListener('mouseenter', () => { linkBtn.style.background='rgba(255,255,255,0.10)'; });
-                            linkBtn.addEventListener('mouseleave', () => { linkBtn.style.background='transparent'; });
-                            linkPanel.appendChild(linkBtn);
-                        });
-                        wrap.appendChild(linkPanel);
-                        secRow.appendChild(wrap);
-                    } else {
-                        secRow.appendChild(makeProcessCard(m, pn, isCase, wc));
-                    }
+                    secRow.appendChild(makeProcessCard(m, pn, isCase, wc));
                 });
                 secPanel.appendChild(secRow);
                 if (si === 0) {
@@ -892,7 +832,7 @@
             if (wc.id === 'TLC1') {
                 const pr = mm.find(x => x.name === 'Pallet Receive');
                 const pallets = pr ? pr.volume : null;
-                const jobs = pr ? pr.palletJobs : null;
+                const units = (pr && pr.originalVolume != null) ? pr.originalVolume : null;
                 const lb = 'color:#8e8e93;font-size:8px;font-weight:500;letter-spacing:0.2px;';
                 const vl = 'color:#f5f5f7;font-weight:600;font-size:13px;line-height:1.1;';
                 const pc = document.createElement('div');
@@ -902,7 +842,7 @@
                 pc.innerHTML = '<div style="color:#aeaeb2;font-weight:500;font-size:10px;">Pallet Receive</div>'
                     + '<div style="display:flex;gap:14px;align-items:flex-end;">'
                     + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(pallets) + '</div><div style="' + lb + '">Pallets</div></div>'
-                    + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(jobs) + '</div><div style="' + lb + '">Jobs</div></div>'
+                    + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(units) + '</div><div style="' + lb + '">Units</div></div>'
                     + '</div>';
                 prodRow.appendChild(pc);
             }
