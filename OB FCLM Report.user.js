@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Rediseño minimalista estilo Apple: vidrio esmerilado, tarjetas compactas y puntos de estado
+// @version      1.3
+// @description  Nuevos bloques TO Support, TO Lead/PA y TO Problem Solve + liga extra en RC Sort
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,14 +16,14 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.2';
+    const SCRIPT_VERSION = '1.3';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock'] }
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','Transfer Out - Total','Transfer Out Dock','Transfer Out Support','TO Lead/PA','TO Problem Solve'] }
         ],
         hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','TO Palletize','TO RWC','Pallet Receive'],
         productivity: {
@@ -46,7 +46,10 @@
             'Manual Sort -Total': '01785143512767',
             'TO Palletize': '01785143645486',
             'TO RWC': '01785143680335',
-            'Transfer Out Dock': '01003022'
+            'Transfer Out Dock': '01003022',
+            'Transfer Out Support': '01003023',
+            'TO Lead/PA': '01003023',
+            'TO Problem Solve': '01002985'
         },
         processDropdowns: {},
         customPlanConfig: {},
@@ -57,6 +60,9 @@
             ]
         },
         processLinkMenu: {
+            'Manual Sort -Total': [
+                { name: 'Detalle RC Sort', processId: '01785143618796' }
+            ],
             'Transfer Out Dock': [
                 { name: '\uD83D\uDE9A Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
                 { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
@@ -445,7 +451,7 @@
                 border:1px solid rgba(255,255,255,0.08);
                 border-radius:12px;
                 padding:6px 9px;
-                flex:1; min-width:0;
+                flex:1 1 30%; min-width:0;
                 display:flex; flex-direction:column; gap:4px;
             `;
 
@@ -515,7 +521,7 @@
         } else {
             card.style.cssText = `
                 background:${T.na.bg};border:1px solid rgba(255,255,255,0.06);border-radius:12px;
-                padding:6px 9px;flex:1;min-width:0;
+                padding:6px 9px;flex:1 1 30%;min-width:0;
                 display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;
             `;
             card.innerHTML = `
@@ -764,7 +770,7 @@
 
             wc.sections.forEach((sec, si) => {
                 const secRow = document.createElement('div');
-                secRow.style.cssText = 'display:flex;align-items:stretch;gap:6px;';
+                secRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;flex:1;min-width:0;';
                 const tag = document.createElement('div');
                 tag.style.cssText = `
                     display:flex;align-items:center;justify-content:center;
@@ -784,7 +790,7 @@
                     if (subMenuCfg) {
                         const wrap = document.createElement('div');
                         wrap.className = 'fclm-submenu-wrap';
-                        wrap.style.cssText = 'position:relative;flex:1;min-width:0;display:flex;flex-direction:column;';
+                        wrap.style.cssText = 'position:relative;flex:1 1 30%;min-width:0;display:flex;flex-direction:column;';
 
                         const mainCard = makeProcessCard(m, pn, isCase, wc);
                         // Add gear icon for customPlanConfig processes
@@ -812,7 +818,7 @@
                         if (extraLinks) {
                             extraLinks.forEach(lnk => {
                                 const linkBtn = document.createElement('a');
-                                linkBtn.href = lnk.url;
+                                linkBtn.href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, wc.id) : lnk.url) || '#';
                                 linkBtn.target = '_blank';
                                 linkBtn.textContent = lnk.name;
                                 linkBtn.style.cssText = 'display:block;padding:7px 10px;background:transparent;border:none;border-radius:8px;color:#f5f5f7;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;transition:background .15s ease;text-align:left;';
@@ -826,14 +832,14 @@
                     } else if (linkMenuCfg) {
                         const wrap = document.createElement('div');
                         wrap.className = 'fclm-submenu-wrap';
-                        wrap.style.cssText = 'position:relative;flex:1;min-width:0;display:flex;flex-direction:column;';
+                        wrap.style.cssText = 'position:relative;flex:1 1 30%;min-width:0;display:flex;flex-direction:column;';
                         wrap.appendChild(makeProcessCard(m, pn, isCase, wc));
 
                         const linkPanel = document.createElement('div');
                         linkPanel.className = 'fclm-submenu';
                         linkMenuCfg.forEach(lnk => {
                             const linkBtn = document.createElement('a');
-                            linkBtn.href = lnk.url;
+                            linkBtn.href = (lnk.processId ? buildFunctionRollupURL(lnk.processId, wc.id) : lnk.url) || '#';
                             linkBtn.target = '_blank';
                             linkBtn.textContent = lnk.name;
                             linkBtn.style.cssText = 'display:block;padding:7px 10px;background:transparent;border:none;border-radius:8px;color:#f5f5f7;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;transition:background .15s ease;text-align:left;';
@@ -1019,7 +1025,7 @@
             overlay.id = 'fclm-plan-editor';
             overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
             const modal = document.createElement('div');
-            modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:300px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+            modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:300px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
             modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><span style="font-weight:600;font-size:14px;color:#f5f5f7;white-space:nowrap;">\u2699\uFE0F Rates de ' + cpc.title + '</span><span id="fclm-plan-close" style="cursor:pointer;font-size:18px;color:#6b7280;">\u2715</span></div><div style="display:flex;align-items:center;gap:10px;padding:10px 0;"><span style="font-size:12px;color:#9ca3af;">Target Rate:</span><input id="fclm-single-target" type="number" value="' + current + '" style="width:100px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#f5f5f7;padding:6px 8px;font-size:13px;text-align:center;" /></div><div style="display:flex;gap:8px;margin-top:14px;"><button id="fclm-plan-save" style="flex:1;padding:8px;background:#0a84ff;border:none;border-radius:980px;color:#fff;font-weight:600;font-size:12px;cursor:pointer;">Guardar</button><button id="fclm-plan-cancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.08);border:none;border-radius:980px;color:#aeaeb2;font-weight:600;font-size:12px;cursor:pointer;">Cancelar</button></div>';
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
@@ -1041,7 +1047,7 @@
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
         const modal = document.createElement('div');
-        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:340px;max-width:420px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:340px;max-width:420px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
 
         let inputsHTML = '';
         cpc.subProcesses.forEach(sp => {
@@ -1117,7 +1123,7 @@
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
         const modal = document.createElement('div');
-        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;width:480px;max-height:80vh;overflow-y:auto;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;width:480px;max-height:80vh;overflow-y:auto;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
 
         // Build config sections
         const allConfigs = [
