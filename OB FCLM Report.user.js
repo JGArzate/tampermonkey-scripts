@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.8
-// @description  Bloques TLC1 reordenados en 2 filas y hover azul en los botones
+// @version      1.9.1
+// @description  Se agrega Transfer Out Support a QYY7 (processId 01785144518570, fechas dinámicas)
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.8';
+    const SCRIPT_VERSION = '1.9.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -75,9 +75,10 @@
     const QYY7_CONFIG = {
         id: 'QYY7', color: '#7b2d8b',
         sections: [
-            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','TO Palletize','Transfer Out Dock'] }
+            { name: 'OUTBOUND', processes: ['Transfer Out Pick - Total','TO Palletize','Transfer Out Support','Transfer Out Dock'] },
+            { name: 'OUTBOUND2', processes: ['TO Lead/PA','TO Problem Solve','DA Bldg to Bldg Transfer TOTAL'] }
         ],
-        hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL'],
+        hiddenProcesses: [],
         productivity: {
             name: 'PRODUCTIVIDAD QYY7',
             processes: [
@@ -94,6 +95,9 @@
         processLinks: {
             'Transfer Out Pick - Total': '01003065',
             'TO Palletize': '01785143645486',
+            'Transfer Out Support': '01785144518570',
+            'TO Lead/PA': '01003023',
+            'TO Problem Solve': '01002985',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
@@ -181,11 +185,11 @@
             const d=dp.startDateDay.replace(/\//g,'-'); s=`${d}T00:00:00.000`; e=`${d}T23:59:59.000`;
         } else if (dp.spanType==='Week' && dp.startDateWeek) {
             const d=dp.startDateWeek.replace(/\//g,'-'); s=`${d}T00:00:00.000`;
-            const end=new Date(d); end.setDate(end.getDate()+6); e=`${end.toISOString().slice(0,10)}T23:59:59.000`;
+            const pw=d.split('-').map(Number); const end=new Date(pw[0],pw[1]-1,pw[2]+6); const fm=n=>String(n).padStart(2,'0'); e=`${end.getFullYear()}-${fm(end.getMonth()+1)}-${fm(end.getDate())}T23:59:59.000`;
         } else if (dp.spanType==='Month' && dp.startDateMonth) {
             const d=dp.startDateMonth.replace(/\//g,'-'); s=`${d}T00:00:00.000`;
             const pts=d.split('-'); const last=new Date(parseInt(pts[0]),parseInt(pts[1]),0);
-            e=`${last.toISOString().slice(0,10)}T23:59:59.000`;
+            const fm2=n=>String(n).padStart(2,'0'); e=`${last.getFullYear()}-${fm2(last.getMonth()+1)}-${fm2(last.getDate())}T23:59:59.000`;
         }
         if (!s||!e) return null;
         return `https://fclm-portal.amazon.com/reports/functionRollup?warehouseId=${warehouseId}&spanType=Intraday&startDate=${s}&endDate=${e}&reportFormat=HTML&processId=${processId}`;
@@ -414,7 +418,7 @@
             if (!href) return;
             const a = document.createElement('a');
             a.href = href; a.target = '_blank'; a.textContent = lnk.name;
-            a.style.cssText = 'flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:10.5px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s ease;';
+            a.style.cssText = 'flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:7px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:11.5px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s ease;';
             a.addEventListener('mouseenter', function() { a.style.background = '#0a84ff'; a.style.color = '#ffffff'; });
             a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; a.style.color = '#f5f5f7'; });
             row.appendChild(a);
@@ -430,7 +434,7 @@
         const subMenu = whConfig && whConfig.processSubMenu ? whConfig.processSubMenu[pn] : null;
         let linkBtn = '';
         if (false && subMenu && linkURL) {
-            linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:10px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;">\u2197\uFE0F</a><span style="font-size:9px;margin-left:2px;opacity:0.7;cursor:default;">\u25BC</span>`;
+            linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:11px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;">\u2197\uFE0F</a><span style="font-size:9px;margin-left:2px;opacity:0.7;cursor:default;">\u25BC</span>`;
         } else if (false && subMenu) {
             linkBtn = `<span style="font-size:8px;margin-left:4px;opacity:0.5;cursor:default;">\u25BC</span>`;
         } else if (dropdown && dropdown.length > 0) {
@@ -444,7 +448,7 @@
             });
             linkBtn = `<span style="position:relative;display:inline-block;margin-left:3px;cursor:pointer;" onmouseenter="this.querySelector('.fclm-dropdown').style.display='block'" onmouseleave="this.querySelector('.fclm-dropdown').style.display='none'"><span style="font-size:11px;opacity:0.7;transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.7'">↗️</span><div class="fclm-dropdown" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:#1a2332;border:1px solid #374151;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:100;min-width:70px;padding:4px 0;margin-top:2px;">${ddItems}</div></span>`;
         } else if (linkURL) {
-            linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:10px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;cursor:pointer;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.7'">↗️</a>`;
+            linkBtn = `<a href="${linkURL}" target="_blank" title="Ver detalle" style="text-decoration:none;font-size:11px;margin-left:4px;opacity:0.5;transition:opacity 0.2s;cursor:pointer;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.7'">↗️</a>`;
         }
         const card = document.createElement('div');
         card.className = 'fclm-card';
@@ -470,14 +474,14 @@
             `;
 
             let volHTML = '';
-            const lbl = 'color:#8e8e93;font-size:8px;font-weight:500;letter-spacing:0.2px;';
-            const val = 'color:#f5f5f7;font-weight:600;font-size:10px;white-space:nowrap;';
+            const lbl = 'color:#8e8e93;font-size:9.5px;font-weight:500;letter-spacing:0.2px;text-align:center;line-height:1.2;';
+            const val = 'color:#f5f5f7;font-weight:600;font-size:12px;white-space:nowrap;text-align:center;line-height:1.25;';
             if (hasCasesVol) {
                 const isTote = whConfig && whConfig.toteBlocks && whConfig.toteBlocks.includes(pn);
                 const cLabel = isTote ? 'Totes / Vol' : (isPallet ? 'Pallets / Vol' : 'Cases / Vol');
-                const denBlock = noDen ? '' : '<div style="text-align:left;"><div style="' + lbl + '">Den</div><div style="color:' + th.accent + ';font-weight:600;font-size:10px;white-space:nowrap;">' + (m.density != null ? m.density : '\u2014') + '</div></div>';
+                const denBlock = noDen ? '' : '<div style="text-align:center;min-width:0;"><div style="' + lbl + '">Den</div><div style="color:' + th.accent + ';font-weight:600;font-size:12px;white-space:nowrap;text-align:center;">' + (m.density != null ? m.density : '\u2014') + '</div></div>';
                 volHTML = `
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">${cLabel}</div>
                         <div style="${val}">${fmt(m.casesVolume)} / ${fmt(m.originalVolume)}</div>
                     </div>
@@ -485,18 +489,18 @@
                 `;
             } else if (hasDenOnly) {
                 volHTML = `
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">Cases / Vol</div>
                         <div style="${val}">${fmt(m.casesVolume)} / ${fmt(m.originalVolume)}</div>
                     </div>
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">Den</div>
-                        <div style="color:${th.accent};font-weight:600;font-size:10px;white-space:nowrap;">${m.density != null ? m.density : '\u2014'}</div>
+                        <div style="color:${th.accent};font-weight:600;font-size:12px;white-space:nowrap;text-align:center;">${m.density != null ? m.density : '\u2014'}</div>
                     </div>
                 `;
             } else {
                 volHTML = `
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">Vol</div>
                         <div style="${val}">${fmt(m.volume)}</div>
                     </div>
@@ -504,30 +508,30 @@
             }
 
             const jphBlock = m.jph != null
-                ? '<div style="text-align:left;"><div style="' + lbl + '">' + (m.jphLabel || 'JPH') + '</div><div style="font-size:10px;white-space:nowrap;"><span style="color:' + (m.jph >= m.jphPlan ? '#30d158' : '#ff453a') + ';font-weight:600;">' + fmtRound(m.jph) + '</span><span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">' + fmtRound(m.jphPlan) + '</span></div></div>'
+                ? '<div style="text-align:center;min-width:0;"><div style="' + lbl + '">' + (m.jphLabel || 'JPH') + '</div><div style="font-size:12px;white-space:nowrap;text-align:center;"><span style="color:' + (m.jph >= m.jphPlan ? '#30d158' : '#ff453a') + ';font-weight:600;">' + fmtRound(m.jph) + '</span><span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">' + fmtRound(m.jphPlan) + '</span></div></div>'
                 : '';
             card.innerHTML = `
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
                     <span style="display:flex;align-items:center;gap:5px;min-width:0;flex:1;">
                         <span style="width:6px;height:6px;border-radius:50%;background:${th.border};flex-shrink:0;"></span>
-                        <span style="color:#f5f5f7;font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${dn}${linkBtn}</span>
+                        <span style="color:#f5f5f7;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${dn}${linkBtn}</span>
                     </span>
-                    <span style="color:${th.accent};font-weight:700;font-size:11px;white-space:nowrap;">${fmtPct(m.percentToPlan)}</span>
+                    <span style="color:${th.accent};font-weight:700;font-size:13px;white-space:nowrap;">${fmtPct(m.percentToPlan)}</span>
                 </div>
                 <div style="height:2px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width .4s ease;"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;gap:10px;">
+                <div style="display:flex;justify-content:space-around;align-items:flex-start;gap:8px;text-align:center;">
                     ${volHTML}
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">Rate / Plan</div>
-                        <div style="font-size:10px;white-space:nowrap;">
+                        <div style="font-size:12px;white-space:nowrap;text-align:center;">
                             <span style="color:${th.accent};font-weight:600;">${fmtRound(m.actualRate)}</span><span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">${fmtRound(m.planRate)}</span>
                         </div>
                     </div>
-                    <div style="text-align:left;">
+                    <div style="text-align:center;min-width:0;">
                         <div style="${lbl}">\u0394 Hrs</div>
-                        <div style="color:${th.accent};font-weight:600;font-size:10px;white-space:nowrap;">${fmtDelta(m.deltaToPlanHrs)}</div>
+                        <div style="color:${th.accent};font-weight:600;font-size:12px;white-space:nowrap;text-align:center;">${fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
                     ${jphBlock}
                 </div>
@@ -536,10 +540,10 @@
             card.style.cssText = `
                 background:${T.na.bg};border:1px solid rgba(255,255,255,0.06);border-radius:12px;
                 padding:6px 9px;flex:1 1 0;min-width:0;
-                display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;
+                display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;
             `;
             card.innerHTML = `
-                <div style="color:#aeaeb2;font-weight:600;font-size:11px;">${dn}${linkBtn}</div>
+                <div style="color:#aeaeb2;font-weight:600;font-size:13px;">${dn}${linkBtn}</div>
                 <div style="color:#636366;font-size:9px;">sin datos</div>
             `;
         }
@@ -575,17 +579,17 @@
                 flex:1; min-width:0;
                 display:flex; flex-direction:column; align-items:center; gap:3px;
             `;
-            const pl = 'color:#8e8e93;font-size:8px;font-weight:500;letter-spacing:0.2px;';
+            const pl = 'color:#8e8e93;font-size:9.5px;font-weight:500;letter-spacing:0.2px;';
             const dh = (deltaHrs != null)
-                ? '<div style="font-size:9px;font-weight:600;color:' + (deltaHrs >= 0 ? '#30d158' : '#ff453a') + ';">\u0394 ' + fmtDelta(deltaHrs) + ' hrs</div>'
+                ? '<div style="font-size:11px;font-weight:600;color:' + (deltaHrs >= 0 ? '#30d158' : '#ff453a') + ';">\u0394 ' + fmtDelta(deltaHrs) + ' hrs</div>'
                 : '';
             card.innerHTML = `
-                <div style="color:#aeaeb2;font-weight:500;font-size:10px;">${proc.displayName}</div>
+                <div style="color:#aeaeb2;font-weight:500;font-size:12px;">${proc.displayName}</div>
                 <div style="color:${th.accent};font-weight:700;font-size:20px;line-height:1.05;letter-spacing:-0.5px;">${displayPct != null ? Math.round(displayPct)+'%' : '\u2014'}</div>
                 <div style="width:100%;height:2px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width .4s ease;"></div>
                 </div>
-                <div style="font-size:10px;white-space:nowrap;">
+                <div style="font-size:12px;white-space:nowrap;">
                     <span style="${pl}">Rate / ${customTarget != null ? 'Target' : 'Plan'}&nbsp;</span><span style="color:${th.accent};font-weight:600;">${fmtRound(displayRate)}</span><span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">${fmtRound(displayPlan)}</span>
                 </div>
                 ${dh}
@@ -598,7 +602,7 @@
                 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
             `;
             card.innerHTML = `
-                <div style="color:#aeaeb2;font-weight:500;font-size:10px;">${proc.displayName}</div>
+                <div style="color:#aeaeb2;font-weight:500;font-size:12px;">${proc.displayName}</div>
                 <div style="color:#636366;font-size:9px;">sin datos</div>
             `;
         }
@@ -836,13 +840,13 @@
                 const pr = mm.find(x => x.name === 'Pallet Receive');
                 const pallets = pr ? pr.volume : null;
                 const units = (pr && pr.originalVolume != null) ? pr.originalVolume : null;
-                const lb = 'color:#8e8e93;font-size:8px;font-weight:500;letter-spacing:0.2px;';
-                const vl = 'color:#f5f5f7;font-weight:600;font-size:13px;line-height:1.1;';
+                const lb = 'color:#8e8e93;font-size:9.5px;font-weight:500;letter-spacing:0.2px;';
+                const vl = 'color:#f5f5f7;font-weight:600;font-size:15px;line-height:1.1;';
                 const pc = document.createElement('div');
                 pc.className = 'fclm-card';
                 pc.id = 'fclm-pallet-info';
                 pc.style.cssText = 'align-self:center;width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;';
-                pc.innerHTML = '<div style="color:#aeaeb2;font-weight:500;font-size:10px;">Pallet Receive</div>'
+                pc.innerHTML = '<div style="color:#aeaeb2;font-weight:500;font-size:12px;">Pallet Receive</div>'
                     + '<div style="display:flex;gap:14px;align-items:flex-end;">'
                     + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(pallets) + '</div><div style="' + lb + '">Pallets</div></div>'
                     + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(units) + '</div><div style="' + lb + '">Units</div></div>'
@@ -882,6 +886,7 @@
         footerRow.appendChild(mkBtn('\uD83D\uDD00 Transfers','https://fclm-portal.amazon.com/laborTransfer/schedule?&warehouseId=TLC1'));
         footerRow.appendChild(mkBtn('\uD83D\uDD0D FC Research','https://qi-fcresearch-na.corp.amazon.com/TLC1/results?s='));
         footerRow.appendChild(mkBtn('\uD83D\uDCF1 Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
+        footerRow.appendChild(mkBtn('\uD83E\uDDFE ASIN Profile','https://rno-tools.corp.amazon.com/kiosk/asin_profile/?fc=TLC1'));
 
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;';
