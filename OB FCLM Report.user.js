@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.9.1
-// @description  Se agrega Transfer Out Support a QYY7 (processId 01785144518570, fechas dinámicas)
+// @version      2.1
+// @description  Se oculta el cuadrito ✍️ del Plan Tracker; el panel solo se abre con el botón Plan Tracker del footer
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.9.1';
+    const SCRIPT_VERSION = '2.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -888,6 +888,16 @@
         footerRow.appendChild(mkBtn('\uD83D\uDCF1 Escanear','https://fcmenu-iad-regionalized.corp.amazon.com/TLC1/laborTrackingKiosk'));
         footerRow.appendChild(mkBtn('\uD83E\uDDFE ASIN Profile','https://rno-tools.corp.amazon.com/kiosk/asin_profile/?fc=TLC1'));
 
+
+        // Botón 'Plan Tracker' destacado
+        const btnTR = document.createElement('button');
+        btnTR.id = 'fclm-tracker-btn';
+        btnTR.innerHTML = '\uD83D\uDCCA Plan Tracker <span style="font-size:9px;opacity:.7;margin-left:3px;">\u25BE</span>';
+        btnTR.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(10,132,255,0.55);color:#f5f5f7;border-radius:980px;padding:6px 16px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .15s ease,color .15s ease;';
+        btnTR.addEventListener('mouseenter', function() { btnTR.style.background = '#0a84ff'; btnTR.style.color = '#ffffff'; });
+        btnTR.addEventListener('mouseleave', function() { syncTrackerButton(); });
+        btnTR.addEventListener('click', function() { toggleTrackerPanel(btnTR); });
+
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;';
 
@@ -899,6 +909,7 @@
         btnDL.addEventListener('click', exportToCSV);
 
         footerWrap.appendChild(btnDL);
+        footerWrap.appendChild(btnTR);
         footerWrap.appendChild(footerRow);
 
         contentWrap.appendChild(footerWrap);
@@ -934,6 +945,12 @@
         document.body.insertBefore(banner, document.body.firstChild);
         document.body.style.paddingTop = (banner.offsetHeight + 4) + 'px';
 
+
+        // sincroniza el botón con el estado real del panel del tracker
+        syncTrackerButton();
+        if (!window._fclmTrackerObs) {
+            window._fclmTrackerObs = setInterval(syncTrackerButton, 600);
+        }
         const versionBtn = document.getElementById('fclm-version-status-btn');
         if (versionBtn) checkVersionStatus(versionBtn);
     }
@@ -965,6 +982,67 @@
     setInterval(()=>{ if(window.location.href!==lastURL){lastURL=window.location.href; initBanner();} },2000);
 
 
+
+
+    // ============= PLAN TRACKER (botón que controla el tamper original) =============
+    // Aplica el estado visible/oculto del panel del tracker (estilos en línea: inmunes a CSP)
+    function setTrackerVisible(panel, visible) {
+        if (!panel) return;
+        if (visible) {
+            panel.classList.remove('minimizado');
+            const tg = panel.querySelector('#fclm-btn-minimizar');
+            if (tg) tg.textContent = '\u25BC';
+            const ban = document.getElementById('fclm-banner');
+            const top = ban ? (ban.getBoundingClientRect().bottom + 8) : 48;
+            panel.style.setProperty('display', '', 'important');
+            panel.style.top = top + 'px';
+            panel.style.right = '16px';
+            panel.style.left = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.zIndex = '99998';
+        } else {
+            const min = panel.querySelector('#fclm-btn-minimizar');
+            if (min) { min.click(); }
+            panel.classList.add('minimizado');
+            if (min) min.textContent = '\u25B2';
+            panel.style.setProperty('display', 'none', 'important');   // oculta el cuadrito ✍️
+        }
+    }
+
+    function toggleTrackerPanel(btn) {
+        const panel = document.getElementById('fclm-tracker-panel');
+        if (!panel) {
+            if (btn) {
+                const old = btn.innerHTML;
+                btn.textContent = 'Instala o activa el Plan Tracker';
+                btn.style.background = '#ff9f0a'; btn.style.color = '#000';
+                setTimeout(function() { btn.innerHTML = old; syncTrackerButton(); }, 2600);
+            }
+            return;
+        }
+        const oculto = panel.style.display === 'none' || panel.classList.contains('minimizado');
+        setTrackerVisible(panel, oculto);
+        syncTrackerButton();
+    }
+
+    // El tracker recrea su panel al refrescar (crearPanel): lo ocultamos de nuevo apenas aparece
+    function hideTrackerThumbnail() {
+        const panel = document.getElementById('fclm-tracker-panel');
+        if (panel && panel.classList.contains('minimizado') && panel.style.display !== 'none') {
+            panel.style.setProperty('display', 'none', 'important');
+        }
+    }
+
+    function syncTrackerButton() {
+        hideTrackerThumbnail();
+        const b = document.getElementById('fclm-tracker-btn');
+        if (!b) return;
+        const panel = document.getElementById('fclm-tracker-panel');
+        const abierto = !!panel && !panel.classList.contains('minimizado') && panel.style.display !== 'none';
+        b.style.background = abierto ? '#0a84ff' : 'rgba(255,255,255,0.07)';
+        b.style.color = abierto ? '#ffffff' : '#f5f5f7';
+        b.dataset.abierto = abierto ? '1' : '0';
+    }
 
     // ============= PLAN EDITOR MODAL =============
     function openPlanEditor(cpc, mm, wc) {
