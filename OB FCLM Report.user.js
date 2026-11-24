@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Nuevos bloques TO Support, TO Lead/PA y TO Problem Solve + liga extra en RC Sort
+// @version      1.4
+// @description  Fondo negro Apple, sin etiqueta OUTBOUND, bloque Pallet Receive (Pallets/Jobs) en productividad y liga corregida de TO Support
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '1.3';
+    const SCRIPT_VERSION = '1.4';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -47,7 +47,7 @@
             'TO Palletize': '01785143645486',
             'TO RWC': '01785143680335',
             'Transfer Out Dock': '01003022',
-            'Transfer Out Support': '01003023',
+            'Transfer Out Support': '01785144518570',
             'TO Lead/PA': '01003023',
             'TO Problem Solve': '01002985'
         },
@@ -72,6 +72,7 @@
         externalFetch: [
             { targetProcess: 'Manual Sort -Total', processId: '01785143512767', warehouseId: 'TLC1', denOnly: true, valueIndex: 'caseUnit' },
             { targetProcess: 'Pallet Receive', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' },
+            { targetProcess: 'Pallet Receive Jobs', processId: '01003032', warehouseId: 'TLC1', denOnly: false, valueIndex: 'jobs' },
             { targetProcess: 'TO RWC', processId: '01785143680335', warehouseId: 'TLC1', denOnly: false, valueIndex: 'units' }
         ]
     };
@@ -141,7 +142,7 @@
             @keyframes fclmGlow { 0%{box-shadow:0 2px 12px rgba(48,209,88,.35)} 100%{box-shadow:0 4px 20px rgba(48,209,88,.6)} }
             .fclm-submenu {
                 position:absolute; top:100%; left:0; right:0; margin-top:4px;
-                background:rgba(28,28,30,0.92); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
+                background:rgba(10,10,12,0.96); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
                 border:1px solid rgba(255,255,255,0.10); border-radius:12px; padding:4px;
                 box-shadow:0 12px 32px rgba(0,0,0,0.5);
                 z-index:50; gap:4px; flex-direction:column; display:flex;
@@ -302,6 +303,12 @@
         const config = whId === 'QYY7' ? QYY7_CONFIG : TLC1_CONFIG;
 
         for(let c of config.externalFetch){
+            if (c.targetProcess === 'Pallet Receive Jobs') {
+                const pm0 = metrics.find(x => x.name === 'Pallet Receive');
+                const jv = extVals[whId + '_' + c.targetProcess];
+                if (pm0 && jv != null) pm0.palletJobs = jv;
+                continue;
+            }
             const cases = extVals[whId + '_' + c.targetProcess];
             if(cases != null){
                 const m = metrics.find(m => m.name === c.targetProcess);
@@ -393,12 +400,12 @@
 
     // Dark theme tokens (dark cards, colored status borders)
     const T = {
-        on:  {bg:'rgba(255,255,255,0.05)', border:'#30d158', accent:'#30d158', text:'#f5f5f7', arrow:'\u25B2'},
-        off: {bg:'rgba(255,255,255,0.05)', border:'#ff453a', accent:'#ff453a', text:'#f5f5f7', arrow:'\u25BC'},
+        on:  {bg:'rgba(255,255,255,0.06)', border:'#30d158', accent:'#30d158', text:'#f5f5f7', arrow:'\u25B2'},
+        off: {bg:'rgba(255,255,255,0.06)', border:'#ff453a', accent:'#ff453a', text:'#f5f5f7', arrow:'\u25BC'},
         na:  {bg:'rgba(255,255,255,0.03)', border:'#636366', accent:'#8e8e93', text:'#aeaeb2', arrow:'\u25CF'},
-        pg:  {bg:'rgba(255,255,255,0.05)', border:'#30d158', accent:'#30d158', text:'#f5f5f7'},
-        po:  {bg:'rgba(255,255,255,0.05)', border:'#ff9f0a', accent:'#ff9f0a', text:'#f5f5f7'},
-        pr:  {bg:'rgba(255,255,255,0.05)', border:'#ff453a', accent:'#ff453a', text:'#f5f5f7'},
+        pg:  {bg:'rgba(255,255,255,0.06)', border:'#30d158', accent:'#30d158', text:'#f5f5f7'},
+        po:  {bg:'rgba(255,255,255,0.06)', border:'#ff9f0a', accent:'#ff9f0a', text:'#f5f5f7'},
+        pr:  {bg:'rgba(255,255,255,0.06)', border:'#ff453a', accent:'#ff453a', text:'#f5f5f7'},
         pna: {bg:'rgba(255,255,255,0.03)', border:'#636366', accent:'#8e8e93', text:'#aeaeb2'}
     };
 
@@ -638,7 +645,7 @@
         pill.style.cssText = `
             position:fixed;left:${posX}px;top:${posY}px;z-index:99999;
             width:40px;height:40px;
-            background:rgba(28,28,30,0.85);
+            background:rgba(0,0,0,0.88);
             backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
             border:1px solid rgba(255,255,255,0.12);
             border-radius:50%;
@@ -690,7 +697,7 @@
         banner.id = 'fclm-banner';
         banner.style.cssText = `
             position:fixed;top:0;left:0;right:0;z-index:99999;
-            background:rgba(22,22,24,0.82);
+            background:rgba(0,0,0,0.92);
             backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
             display:flex;flex-direction:column;
             box-shadow:0 8px 30px rgba(0,0,0,0.35);
@@ -771,15 +778,7 @@
             wc.sections.forEach((sec, si) => {
                 const secRow = document.createElement('div');
                 secRow.style.cssText = 'display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;flex:1;min-width:0;';
-                const tag = document.createElement('div');
-                tag.style.cssText = `
-                    display:flex;align-items:center;justify-content:center;
-                    width:12px;min-width:12px;flex-shrink:0;
-                    color:#636366;font-size:7px;font-weight:600;
-                    writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:1px;
-                `;
-                tag.textContent = sec.name;
-                secRow.appendChild(tag);
+
                 sec.processes.forEach(pn => {
                     const m = mm.find(x => x.name === pn);
                     const isCase = wc.casesBlocks.includes(pn);
@@ -868,7 +867,7 @@
             whBlock.appendChild(vSep);
 
             const prodPanel = document.createElement('div');
-            prodPanel.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;width:250px;justify-content:center;';
+            prodPanel.style.cssText = 'display:flex;flex-direction:column;gap:5px;flex-shrink:0;width:330px;justify-content:center;';
             const prodTitle = document.createElement('div');
             prodTitle.style.cssText = `color:#8e8e93;font-size:9px;font-weight:600;letter-spacing:0.6px;text-align:left;text-transform:uppercase;`;
             prodTitle.textContent = wc.productivity.name;
@@ -890,17 +889,24 @@
                 }
                 prodRow.appendChild(makeProdCard(m, proc, dHrs, customTarget));
             });
-            prodPanel.appendChild(prodRow);
             if (wc.id === 'TLC1') {
                 const pr = mm.find(x => x.name === 'Pallet Receive');
-                const prInfo = document.createElement('div');
-                prInfo.id = 'fclm-pallet-info';
-                prInfo.style.cssText = 'align-self:flex-end;margin-top:1px;padding:2px 10px;border-radius:980px;background:rgba(255,255,255,0.06);font-size:9px;font-weight:500;color:#8e8e93;white-space:nowrap;';
-                const pVal = (pr && pr.casesVolume != null) ? pr.casesVolume : (pr ? pr.volume : null);
-                const vVal = (pr && pr.originalVolume != null) ? pr.originalVolume : null;
-                prInfo.innerHTML = 'Pallets / Vol&nbsp;&nbsp;<span style="color:#f5f5f7;font-weight:600;">' + fmt(pVal) + ' / ' + fmt(vVal) + '</span>';
-                prodPanel.appendChild(prInfo);
+                const pallets = pr ? pr.volume : null;
+                const jobs = pr ? pr.palletJobs : null;
+                const lb = 'color:#8e8e93;font-size:8px;font-weight:500;letter-spacing:0.2px;';
+                const vl = 'color:#f5f5f7;font-weight:600;font-size:13px;line-height:1.1;';
+                const pc = document.createElement('div');
+                pc.className = 'fclm-card';
+                pc.id = 'fclm-pallet-info';
+                pc.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:7px 9px;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;';
+                pc.innerHTML = '<div style="color:#aeaeb2;font-weight:500;font-size:10px;">Pallet Receive</div>'
+                    + '<div style="display:flex;gap:14px;align-items:flex-end;">'
+                    + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(pallets) + '</div><div style="' + lb + '">Pallets</div></div>'
+                    + '<div style="text-align:center;"><div style="' + vl + '">' + fmt(jobs) + '</div><div style="' + lb + '">Jobs</div></div>'
+                    + '</div>';
+                prodRow.appendChild(pc);
             }
+            prodPanel.appendChild(prodRow);
             whBlock.appendChild(prodPanel);
             contentWrap.appendChild(whBlock);
 
@@ -1025,7 +1031,7 @@
             overlay.id = 'fclm-plan-editor';
             overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
             const modal = document.createElement('div');
-            modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:300px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+            modal.style.cssText = 'background:rgba(10,10,12,0.97);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:300px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
             modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><span style="font-weight:600;font-size:14px;color:#f5f5f7;white-space:nowrap;">\u2699\uFE0F Rates de ' + cpc.title + '</span><span id="fclm-plan-close" style="cursor:pointer;font-size:18px;color:#6b7280;">\u2715</span></div><div style="display:flex;align-items:center;gap:10px;padding:10px 0;"><span style="font-size:12px;color:#9ca3af;">Target Rate:</span><input id="fclm-single-target" type="number" value="' + current + '" style="width:100px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#f5f5f7;padding:6px 8px;font-size:13px;text-align:center;" /></div><div style="display:flex;gap:8px;margin-top:14px;"><button id="fclm-plan-save" style="flex:1;padding:8px;background:#0a84ff;border:none;border-radius:980px;color:#fff;font-weight:600;font-size:12px;cursor:pointer;">Guardar</button><button id="fclm-plan-cancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.08);border:none;border-radius:980px;color:#aeaeb2;font-weight:600;font-size:12px;cursor:pointer;">Cancelar</button></div>';
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
@@ -1047,7 +1053,7 @@
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
         const modal = document.createElement('div');
-        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:340px;max-width:420px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+        modal.style.cssText = 'background:rgba(10,10,12,0.97);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;min-width:340px;max-width:420px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
 
         let inputsHTML = '';
         cpc.subProcesses.forEach(sp => {
@@ -1123,7 +1129,7 @@
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
         const modal = document.createElement('div');
-        modal.style.cssText = 'background:rgba(28,28,30,0.96);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;width:480px;max-height:80vh;overflow-y:auto;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+        modal.style.cssText = 'background:rgba(10,10,12,0.97);border:1px solid rgba(255,255,255,0.10);border-radius:16px;padding:18px;width:480px;max-height:80vh;overflow-y:auto;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
 
         // Build config sections
         const allConfigs = [
@@ -1160,7 +1166,7 @@
 
                 const inputId = 'fclm-cfg-' + item.key.replace(/[^a-zA-Z0-9]/g, '') + '-' + (item.subKey || '').replace(/[^a-zA-Z0-9]/g, '');
 
-                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
                 html += '<span style="font-size:11px;font-weight:600;flex:1;">' + item.label + '</span>';
                 html += '<div style="display:flex;align-items:center;gap:6px;">';
                 html += '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:' + (isManual ? '#8e8e93' : '#f5f5f7') + ';cursor:pointer;"><input type="radio" name="mode-' + inputId + '" value="auto" ' + (!isManual ? 'checked' : '') + ' class="fclm-cfg-mode" data-input="' + inputId + '" style="accent-color:#0a84ff;width:12px;height:12px;" />Auto</label>';
@@ -1317,7 +1323,7 @@
         if (!document.getElementById('fclm-update-styles')) {
             const style = document.createElement('style');
             style.id = 'fclm-update-styles';
-            style.textContent = `.fclm-update-banner{position:fixed;top:14px;right:14px;background:rgba(28,28,30,0.9);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:12px 14px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;gap:14px;animation:fclmSlideIn .3s ease-out forwards;max-width:340px}.fclm-update-banner.hide{animation:fclmSlideOut .3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(-12px);opacity:0}}.fclm-update-content{flex:1;line-height:1.35}.fclm-update-title{font-weight:600;font-size:12px}.fclm-update-version{font-size:11px;color:#8e8e93}.fclm-update-buttons{display:flex;gap:6px;align-items:center;white-space:nowrap}.fclm-update-btn{padding:5px 12px;border:none;border-radius:980px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:background .15s ease}.fclm-update-btn.update{background:#0a84ff;color:#fff}.fclm-update-btn.update:hover{background:#409cff}.fclm-update-btn.dismiss{background:rgba(255,255,255,0.08);color:#aeaeb2;width:24px;height:24px;padding:0;font-size:12px}.fclm-update-btn.dismiss:hover{background:rgba(255,255,255,0.16)}`;
+            style.textContent = `.fclm-update-banner{position:fixed;top:14px;right:14px;background:rgba(10,10,12,0.96);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:12px 14px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;gap:14px;animation:fclmSlideIn .3s ease-out forwards;max-width:340px}.fclm-update-banner.hide{animation:fclmSlideOut .3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(-12px);opacity:0}}.fclm-update-content{flex:1;line-height:1.35}.fclm-update-title{font-weight:600;font-size:12px}.fclm-update-version{font-size:11px;color:#8e8e93}.fclm-update-buttons{display:flex;gap:6px;align-items:center;white-space:nowrap}.fclm-update-btn{padding:5px 12px;border:none;border-radius:980px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:background .15s ease}.fclm-update-btn.update{background:#0a84ff;color:#fff}.fclm-update-btn.update:hover{background:#409cff}.fclm-update-btn.dismiss{background:rgba(255,255,255,0.08);color:#aeaeb2;width:24px;height:24px;padding:0;font-size:12px}.fclm-update-btn.dismiss:hover{background:rgba(255,255,255,0.16)}`;
             document.head.appendChild(style);
         }
         const banner = document.createElement('div');
