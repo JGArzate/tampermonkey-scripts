@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      2.1
-// @description  Se oculta el cuadrito ✍️ del Plan Tracker; el panel solo se abre con el botón Plan Tracker del footer
+// @version      3.1
+// @description  v3.1: Paneles Avance al Plan/Performance movibles (guardan posición, quedan encima del banner), icono de actualizar nuevo
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '2.1';
+    const SCRIPT_VERSION = '3.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -889,27 +889,11 @@
         footerRow.appendChild(mkBtn('\uD83E\uDDFE ASIN Profile','https://rno-tools.corp.amazon.com/kiosk/asin_profile/?fc=TLC1'));
 
 
-        // Botón 'Plan Tracker' destacado
-        const btnTR = document.createElement('button');
-        btnTR.id = 'fclm-tracker-btn';
-        btnTR.innerHTML = '\uD83D\uDCCA Plan Tracker <span style="font-size:9px;opacity:.7;margin-left:3px;">\u25BE</span>';
-        btnTR.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(10,132,255,0.55);color:#f5f5f7;border-radius:980px;padding:6px 16px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .15s ease,color .15s ease;';
-        btnTR.addEventListener('mouseenter', function() { btnTR.style.background = '#0a84ff'; btnTR.style.color = '#ffffff'; });
-        btnTR.addEventListener('mouseleave', function() { syncTrackerButton(); });
-        btnTR.addEventListener('click', function() { toggleTrackerPanel(btnTR); });
-
+        // Botones Avance al Plan / Performance (integrados)
         const footerWrap = document.createElement('div');
         footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;';
-
-        const btnDL = document.createElement('button');
-        btnDL.textContent = '\u2B07\uFE0F Descargar Excel';
-        btnDL.style.cssText = 'background:#0a84ff;border:none;color:#ffffff;border-radius:980px;padding:6px 16px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .15s ease;';
-        btnDL.addEventListener('mouseenter',()=>{btnDL.style.background='#409cff';});
-        btnDL.addEventListener('mouseleave',()=>{btnDL.style.background='#0a84ff';});
-        btnDL.addEventListener('click', exportToCSV);
-
-        footerWrap.appendChild(btnDL);
-        footerWrap.appendChild(btnTR);
+        footerWrap.appendChild(ptButton('avance', '\uD83D\uDCC8', 'Avance al Plan'));
+        footerWrap.appendChild(ptButton('perf', '\u26A1', 'Performance'));
         footerWrap.appendChild(footerRow);
 
         contentWrap.appendChild(footerWrap);
@@ -946,11 +930,9 @@
         document.body.style.paddingTop = (banner.offsetHeight + 4) + 'px';
 
 
-        // sincroniza el botón con el estado real del panel del tracker
-        syncTrackerButton();
-        if (!window._fclmTrackerObs) {
-            window._fclmTrackerObs = setInterval(syncTrackerButton, 600);
-        }
+        ptSyncButtons();
+        const ptp = document.getElementById('ob-pt-panel');
+        if (ptp && ptView) ptPlace(ptp);
         const versionBtn = document.getElementById('fclm-version-status-btn');
         if (versionBtn) checkVersionStatus(versionBtn);
     }
@@ -969,7 +951,21 @@
     }
     waitForData();
 
-    const obs=new MutationObserver(()=>{
+    // Ignora cambios hechos por el propio tamper (banner, píldora, panel, modales, estilos) para evitar el ciclo de redibujo
+    const OWN_IDS=['fclm-banner','fclm-pill','ob-pt-panel','obpt-styles','fclm-settings-overlay','fclm-plan-editor','fclm-update-banner'];
+    const isOwnNode=(n)=>{
+        let el=n&&n.nodeType===1?n:(n&&n.parentElement);
+        while(el){ if(el.id&&(OWN_IDS.includes(el.id)||el.id.indexOf('fclm-')===0||el.id.indexOf('obpt')===0||el.id.indexOf('ob-pt')===0))return true; el=el.parentElement; }
+        return false;
+    };
+    const obs=new MutationObserver((muts)=>{
+        const externo=muts.some(m=>{
+            if(isOwnNode(m.target)&&m.target!==document.body&&m.target!==document.head)return false;
+            const nodos=[...m.addedNodes,...m.removedNodes];
+            if(!nodos.length)return !isOwnNode(m.target);
+            return nodos.some(n=>!isOwnNode(n)&&!(n.nodeType===1&&(n.tagName==='STYLE'||n.tagName==='SCRIPT')));
+        });
+        if(!externo)return;
         clearTimeout(window._fclmT);
         window._fclmT=setTimeout(()=>{
             const t=document.body.textContent||'';
@@ -984,65 +980,610 @@
 
 
 
-    // ============= PLAN TRACKER (botón que controla el tamper original) =============
-    // Aplica el estado visible/oculto del panel del tracker (estilos en línea: inmunes a CSP)
-    function setTrackerVisible(panel, visible) {
-        if (!panel) return;
-        if (visible) {
-            panel.classList.remove('minimizado');
-            const tg = panel.querySelector('#fclm-btn-minimizar');
-            if (tg) tg.textContent = '\u25BC';
-            const ban = document.getElementById('fclm-banner');
-            const top = ban ? (ban.getBoundingClientRect().bottom + 8) : 48;
-            panel.style.setProperty('display', '', 'important');
-            panel.style.top = top + 'px';
-            panel.style.right = '16px';
-            panel.style.left = 'auto';
-            panel.style.bottom = 'auto';
-            panel.style.zIndex = '99998';
-        } else {
-            const min = panel.querySelector('#fclm-btn-minimizar');
-            if (min) { min.click(); }
-            panel.classList.add('minimizado');
-            if (min) min.textContent = '\u25B2';
-            panel.style.setProperty('display', 'none', 'important');   // oculta el cuadrito ✍️
+
+    // ═══════════════════════════════════════════════════════════════
+    //  AVANCE AL PLAN + PERFORMANCE  (integrado desde "FCLM Plan Tracker" v4.2 de varxjos)
+    // ═══════════════════════════════════════════════════════════════
+    const PT = {
+        timezone: 'America/Mexico_City',
+        refreshIntervals: [5, 10, 15, 30],
+        defaultRefreshMin: 15,
+        semaforo: { verde: 95, amarillo: 85 },
+        turnos: {
+            night: { nombre: 'Night Shift', inicio: { h: 19, m: 0 }, fin: { h: 5, m: 30, nextDay: true }, horasBrutas: 10.5,
+                breaks: [ { inicio: { h: 23, m: 30 }, fin: { h: 0, m: 0, nextDay: true }, nombre: 'Break 1' },
+                          { inicio: { h: 3, m: 0 },   fin: { h: 3, m: 30 }, nombre: 'Break 2' } ] },
+            day:   { nombre: 'Day Shift', inicio: { h: 7, m: 0 }, fin: { h: 19, m: 0 }, horasBrutas: 12.0,
+                breaks: [ { inicio: { h: 10, m: 30 }, fin: { h: 11, m: 0 }, nombre: 'Break 1' },
+                          { inicio: { h: 15, m: 0 },  fin: { h: 15, m: 30 }, nombre: 'Break 2' } ] }
+        },
+        nodos: {
+            TLC1: { nombre: 'TLC1', flujos: [
+                { id: 'recibo', label: 'Recibo', buscar: [{ texto: 'Receive - Total', operacion: 'single' }] },
+                { id: 'sort', label: 'Sort', buscar: [{ texto: 'Manual Sort -Total', operacion: 'single' }] },
+                { id: 'dock_tlc1', label: 'Dock TLC1', buscar: [{ texto: 'Transfer Out - Total', operacion: 'single' }] }
+            ]},
+            QYY7: { nombre: 'QYY7', flujos: [
+                { id: 'stow', label: 'Stow', unidad: 'cases', buscar: [{ texto: 'Case Stow to Reserve', operacion: 'sum' }, { texto: 'Case Transfer In', operacion: 'sum' }] },
+                { id: 'pick', label: 'Pick', unidad: 'cases', usarFunctionRollup: true, processId: '01003065' },
+                { id: 'dock_qyy7', label: 'Dock QYY7', unidad: 'cases', usarFunctionRollup: true, processId: '01785143645486' }
+            ]}
         }
+    };
+    const PT_KEY_PLAN = 'obpt_plan', PT_KEY_CFG = 'obpt_config';
+    const ptPad = function(n) { return String(n).padStart(2, '0'); };
+
+    // ---------- almacenamiento (localStorage, sin permisos GM) ----------
+    function ptLoad(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+    function ptSave(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+    function ptCargarPlan() { return ptLoad(PT_KEY_PLAN, {}); }
+    function ptCargarConfig() {
+        const cfg = Object.assign({ refreshMinutes: PT.defaultRefreshMin, breaks: null, turnoManual: false, manualTurnoTipo: 'day',
+                                    manualInicio: '', manualFin: '', semaforoVerde: 95, semaforoAmarillo: 85 }, ptLoad(PT_KEY_CFG, {}));
+        if (cfg.breaks) { ['night', 'day'].forEach(function(k) { if (cfg.breaks[k]) PT.turnos[k].breaks = cfg.breaks[k]; }); }
+        PT.semaforo.verde = Number(cfg.semaforoVerde) || 95;
+        PT.semaforo.amarillo = Number(cfg.semaforoAmarillo) || 85;
+        return cfg;
     }
 
-    function toggleTrackerPanel(btn) {
-        const panel = document.getElementById('fclm-tracker-panel');
-        if (!panel) {
-            if (btn) {
-                const old = btn.innerHTML;
-                btn.textContent = 'Instala o activa el Plan Tracker';
-                btn.style.background = '#ff9f0a'; btn.style.color = '#000';
-                setTimeout(function() { btn.innerHTML = old; syncTrackerButton(); }, 2600);
+    // ---------- tiempo ----------
+    function ptAhora() { return new Date(new Date().toLocaleString('en-US', { timeZone: PT.timezone })); }
+    function ptFecha(d) { const dt = d || ptAhora(); return dt.getFullYear() + '-' + ptPad(dt.getMonth() + 1) + '-' + ptPad(dt.getDate()); }
+    function ptSumarDias(fecha, dias) { const d = new Date(fecha + 'T00:00:00'); d.setDate(d.getDate() + dias); return ptFecha(d); }
+    function ptHM(f, h, m) { return new Date(f + 'T' + ptPad(h) + ':' + ptPad(m) + ':00'); }
+
+    function ptTurnoManual() {
+        const cfg = ptCargarConfig();
+        if (!cfg.turnoManual || !cfg.manualInicio || !cfg.manualFin) return { activo: false };
+        const inicio = new Date(cfg.manualInicio), fin = new Date(cfg.manualFin);
+        if (isNaN(inicio) || isNaN(fin) || fin <= inicio) return { activo: false };
+        return { activo: true, tipo: cfg.manualTurnoTipo === 'night' ? 'night' : 'day', inicio: inicio, fin: fin };
+    }
+    function ptDetectarTurno() {
+        const man = ptTurnoManual(); if (man.activo) return man.tipo;
+        const a = ptAhora(), min = a.getHours() * 60 + a.getMinutes();
+        if (min >= 19 * 60 || min <= 5 * 60 + 29) return 'night';
+        if (min >= 7 * 60 && min <= 18 * 60 + 59) return 'day';
+        return null;
+    }
+    function ptBreakActual(tk) {
+        if (!tk) return null;
+        const a = ptAhora(), min = a.getHours() * 60 + a.getMinutes();
+        for (const b of PT.turnos[tk].breaks) {
+            const ini = b.inicio.h * 60 + b.inicio.m; let fin = b.fin.h * 60 + b.fin.m;
+            if (fin === 0 || b.fin.nextDay) fin = 24 * 60;
+            if (min >= ini && min < fin) return b;
+        }
+        return null;
+    }
+    function ptBreakEnRango(tk, rIni, rFin) {
+        const t = PT.turnos[tk]; if (!t) return 0;
+        const base = ptFecha(rIni), man = ptSumarDias(base, 1); let total = 0;
+        for (const b of t.breaks) {
+            const bIni = ptHM(base, b.inicio.h, b.inicio.m);
+            const bFin = (b.fin.nextDay || b.fin.h === 0) ? ptHM(man, b.fin.h, b.fin.m) : ptHM(base, b.fin.h, b.fin.m);
+            const i = Math.max(bIni.getTime(), rIni.getTime()), f = Math.min(bFin.getTime(), rFin.getTime());
+            if (f > i) total += (f - i) / 60000;
+        }
+        return total;
+    }
+    function ptHorasTotales(tk) {
+        const man = ptTurnoManual();
+        if (man.activo) return Math.max(0, ((man.fin - man.inicio) / 60000 - ptBreakEnRango(man.tipo, man.inicio, man.fin)) / 60);
+        const t = PT.turnos[tk]; if (!t) return 0; let brk = 0;
+        t.breaks.forEach(function(b) { const i = b.inicio.h * 60 + b.inicio.m; let f = b.fin.h * 60 + b.fin.m; if (f === 0 || b.fin.nextDay) f = 24 * 60; brk += f - i; });
+        return (t.horasBrutas * 60 - brk) / 60;
+    }
+    function ptTranscurrido(tk) {
+        const man = ptTurnoManual();
+        if (man.activo) {
+            const tope = Math.min(ptAhora().getTime(), man.fin.getTime());
+            if (tope <= man.inicio.getTime()) return 0;
+            const rFin = new Date(tope);
+            return Math.max(0, ((rFin - man.inicio) / 60000 - ptBreakEnRango(man.tipo, man.inicio, rFin)) / 60);
+        }
+        const t = PT.turnos[tk]; if (!t) return 0;
+        const ahora = ptAhora(), hoy = ptFecha(ahora), manana = ptSumarDias(hoy, 1);
+        const tIni = ptHM(hoy, t.inicio.h, t.inicio.m);
+        const ahoraNorm = new Date(ahora.getTime());
+        if (ahoraNorm < tIni) ahoraNorm.setDate(ahoraNorm.getDate() + 1);
+        const minTrans = Math.floor((ahoraNorm - tIni) / 60000);
+        if (minTrans < 0) return 0;
+        let pasados = 0;
+        for (const b of t.breaks) {
+            const bIni = ptHM(hoy, b.inicio.h, b.inicio.m);
+            const bFin = (b.fin.nextDay || b.fin.h === 0) ? ptHM(manana, b.fin.h, b.fin.m) : ptHM(hoy, b.fin.h, b.fin.m);
+            if (ahoraNorm >= bFin) pasados += (bFin - bIni) / 60000;
+            else if (ahoraNorm >= bIni) pasados += (ahoraNorm - bIni) / 60000;
+        }
+        return Math.max(0, (minTrans - pasados) / 60);
+    }
+    function ptHoras(h) { const hh = Math.floor(h); return hh + 'h ' + Math.round((h - hh) * 60) + 'min'; }
+    function ptFechaInicioTurno(tk) {
+        const a = ptAhora(), min = a.getHours() * 60 + a.getMinutes();
+        if (tk === 'night' && min < 7 * 60) { const ay = new Date(a); ay.setDate(ay.getDate() - 1); return ptFecha(ay); }
+        return ptFecha(a);
+    }
+    function ptRango(tk) {
+        const man = ptTurnoManual();
+        if (man.activo) return { sD: ptFecha(man.inicio), sH: man.inicio.getHours(), sM: man.inicio.getMinutes(), eD: ptFecha(man.fin), eH: man.fin.getHours(), eM: man.fin.getMinutes() };
+        const t = PT.turnos[tk], sD = ptFechaInicioTurno(tk);
+        return { sD: sD, sH: t.inicio.h, sM: t.inicio.m, eD: t.fin.nextDay ? ptSumarDias(sD, 1) : sD, eH: t.fin.h, eM: t.fin.m };
+    }
+    function ptRangoQS(r) {
+        return '&maxIntradayDays=1&spanType=Intraday&startDateIntraday=' + r.sD + '&startHourIntraday=' + r.sH + '&startMinuteIntraday=' + r.sM +
+               '&endDateIntraday=' + r.eD + '&endHourIntraday=' + r.eH + '&endMinuteIntraday=' + r.eM;
+    }
+    function ptURL(wh, tk) {
+        return 'https://fclm-portal.amazon.com/reports/processPathRollup?reportFormat=HTML&warehouseId=' + wh + ptRangoQS(ptRango(tk)) +
+               '&_adjustPlanHours=on&_hideEmptyLineItems=on&_rememberViewForWarehouse=on&employmentType=AllEmployees';
+    }
+    function ptURLFR(wh, pid, tk) {
+        return 'https://fclm-portal.amazon.com/reports/functionRollup?reportFormat=HTML&warehouseId=' + wh + '&processId=' + pid + ptRangoQS(ptRango(tk));
+    }
+    function ptURL4h(wh) {
+        const a = ptAhora(), h = a.getHours(), m = a.getMinutes(), min = h * 60 + m; let r;
+        if (min >= 330 && min < 420) r = { sD: ptFecha(a), eD: ptFecha(a), sH: 1, sM: 30, eH: 5, eM: 30 };
+        else if (min >= 420 && min < 660) { const ay = new Date(a); ay.setDate(ay.getDate() - 1); r = { sD: ptFecha(ay), eD: ptFecha(a), sH: 1, sM: 30, eH: 5, eM: 30 }; }
+        else if (min >= 1140 && min < 1380) r = { sD: ptFecha(a), eD: ptFecha(a), sH: 15, sM: 0, eH: 19, eM: 0 };
+        else { const h4 = new Date(a.getTime() - 4 * 3600000); r = { sD: ptFecha(h4), eD: ptFecha(a), sH: h4.getHours(), sM: h4.getMinutes(), eH: h, eM: m }; }
+        return 'https://fclm-portal.amazon.com/reports/processPathRollup?reportFormat=HTML&warehouseId=' + wh + ptRangoQS(r) +
+               '&_adjustPlanHours=on&_hideEmptyLineItems=on&_rememberViewForWarehouse=on&employmentType=AllEmployees';
+    }
+
+    // ---------- extracción ----------
+    function ptFetch(url) {
+        return fetch(url, { credentials: 'include' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+    }
+    function ptParsePPR(html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html'), res = {};
+        const limpiar = function(s) { return s.replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, ' ').replace(/\s+/g, ' ').trim(); };
+        doc.querySelectorAll('tr').forEach(function(fila) {
+            const nc = fila.querySelector('td.lineItemName'), vc = fila.querySelector('td.actualVolume');
+            if (!nc || !vc) return;
+            const link = nc.querySelector('a');
+            const nombre = link ? limpiar(link.textContent) : limpiar(nc.textContent.split('\n')[0]);
+            const vol = parseFloat(vc.textContent.trim().replace(/,/g, ''));
+            const uc = fila.querySelector('td.actualProductivity');
+            const uph = uc ? parseFloat(uc.textContent.trim().replace(/,/g, '')) : 0;
+            if (nombre && !isNaN(vol) && !(nombre in res)) res[nombre] = { vol: vol, uph: isNaN(uph) ? 0 : uph };
+        });
+        return res;
+    }
+    function ptParseFR(html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const num = function(s) { const v = parseFloat((s || '').trim().replace(/,/g, '')); return isNaN(v) ? NaN : v; };
+        const tr = doc.querySelector('tr.total.empl-all');
+        if (tr) {
+            const cc = tr.querySelector('td[data-column="21"]'), cu = tr.querySelector('td[data-column="22"]');
+            if (cc) { const v = num(cc.textContent), u = cu ? num(cu.textContent) : NaN; if (!isNaN(v) && v > 0) return { vol: v, uph: isNaN(u) ? 0 : u }; }
+            const c = tr.querySelectorAll('td');
+            if (c.length >= 7) {
+                const cv = num(c[5].textContent), cuph = num(c[6].textContent);
+                if (!isNaN(cv) && cv > 0) return { vol: cv, uph: isNaN(cuph) ? 0 : cuph };
+                const ev = num(c[3].textContent), euph = num(c[4].textContent);
+                if (!isNaN(ev) && ev > 0) return { vol: ev, uph: isNaN(euph) ? 0 : euph };
             }
-            return;
         }
-        const oculto = panel.style.display === 'none' || panel.classList.contains('minimizado');
-        setTrackerVisible(panel, oculto);
-        syncTrackerButton();
+        return { vol: 0, uph: 0 };
+    }
+    function ptExtraer(tabla, buscar) {
+        let vol = 0, uph = 0;
+        for (const b of buscar) {
+            let e = tabla[b.texto];
+            if (e === undefined) {
+                const q = b.texto.toLowerCase();
+                for (const k of Object.keys(tabla)) { const kl = k.toLowerCase(); if (kl.includes(q) || q.includes(kl)) { e = tabla[k]; break; } }
+            }
+            const v = e ? e.vol : 0, u = e ? e.uph : 0;
+            vol = b.operacion === 'sum' ? vol + (v || 0) : (v || 0);
+            if (u > uph) uph = u;
+        }
+        return { vol: vol, uph: uph };
+    }
+    async function ptDatosNodo(nk, tk) {
+        const nodo = PT.nodos[nk], d = {};
+        try {
+            const ppr = nodo.flujos.filter(function(f) { return !f.usarFunctionRollup; });
+            const fr = nodo.flujos.filter(function(f) { return f.usarFunctionRollup; });
+            let tabla = {};
+            if (ppr.length) tabla = ptParsePPR(await ptFetch(ptURL(nk, tk)));
+            ppr.forEach(function(f) { const r = ptExtraer(tabla, f.buscar); d[f.id] = r.vol; d[f.id + '_uph'] = r.uph; });
+            await Promise.all(fr.map(async function(f) {
+                try { const r = ptParseFR(await ptFetch(ptURLFR(nk, f.processId, tk))); d[f.id] = r.vol; d[f.id + '_uph'] = r.uph; }
+                catch (e) { d[f.id] = null; d[f.id + '_uph'] = 0; }
+            }));
+            try {
+                const t4 = ptParsePPR(await ptFetch(ptURL4h(nk)));
+                ppr.forEach(function(f) { const r = ptExtraer(t4, f.buscar); if (r.uph > 0) d[f.id + '_uph'] = r.uph; });
+            } catch (e) {}
+        } catch (e) { nodo.flujos.forEach(function(f) { d[f.id] = null; }); }
+        return d;
     }
 
-    // El tracker recrea su panel al refrescar (crearPanel): lo ocultamos de nuevo apenas aparece
-    function hideTrackerThumbnail() {
-        const panel = document.getElementById('fclm-tracker-panel');
-        if (panel && panel.classList.contains('minimizado') && panel.style.display !== 'none') {
-            panel.style.setProperty('display', 'none', 'important');
-        }
+    // ---------- cálculos ----------
+    function ptAvance(plan, actual, tk, uph) {
+        if (!plan || plan <= 0) return {};
+        const tot = ptHorasTotales(tk), tr = ptTranscurrido(tk), rest = Math.max(0, tot - tr);
+        const ratePlan = plan / tot, esperado = ratePlan * tr, faltante = plan - actual;
+        return { esperado: esperado, delta: actual - esperado, pct: actual / plan * 100,
+                 pctVsEsperado: esperado > 0 ? actual / esperado * 100 : null,
+                 rateRequerido: rest > 0 ? faltante / rest : null, ratePlan: ratePlan,
+                 hc: (uph > 0 && rest > 0) ? Math.max(0, Math.ceil(faltante / (uph * rest))) : null };
+    }
+    function ptSem(p) { if (p === null || p === undefined) return 'n'; if (p >= PT.semaforo.verde) return 'g'; if (p >= PT.semaforo.amarillo) return 'y'; return 'r'; }
+
+    // ---------- performance ----------
+    const PT_PERF = {
+        thresholds: { red: 90, yellow: 95 },
+        nombres: { 'Manual Sort -Total': 'RC Sort - Total', 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg' },
+        secciones: [
+            { titulo: 'Inbound \u00B7 TLC1', wh: 'TLC1', procesos: ['Each Receive - Total', 'Receive - Total', 'Receive Support', 'IB Problem Solve', 'IB Total'] },
+            { titulo: 'Inbound \u00B7 QYY7', wh: 'QYY7', procesos: ['Case Transfer In', 'Transfer In - Total', 'RSR - Total', 'IB Total'] },
+            { titulo: 'Outbound \u00B7 TLC1', wh: 'TLC1', procesos: ['Manual Sort -Total', 'Transfer Out - Total', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] },
+            { titulo: 'Outbound \u00B7 QYY7', wh: 'QYY7', procesos: ['Transfer Out Pick - Total', 'TO Palletize', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] }
+        ]
+    };
+    function ptPerfNum(t) { if (!t) return null; const n = parseFloat(t.replace(/[,%$\s]/g, '')); return isNaN(n) ? null : n; }
+    function ptPerfEntry(name, v) {
+        if (v.length >= 7) return { name: name, actual: v[2], plan: v[3], variance: v[5], pct: v[6] };
+        if (v.length >= 4) return { name: name, actual: v[0], plan: v[1], variance: v[2], pct: v[3] };
+        if (v.length >= 2) return { name: name, actual: v[0], plan: v[1], variance: 0, pct: v[1] > 0 ? v[0] / v[1] * 100 : 0 };
+        return null;
+    }
+    function ptPerfExtract(html, nombres) {
+        const doc = new DOMParser().parseFromString(html, 'text/html'), out = {};
+        const norm = function(s) { return (s || '').replace(/\s+/g, ' ').trim().toLowerCase(); };
+        const lista = nombres.map(function(n) { return [norm(n), n]; });
+        doc.querySelectorAll('tr').forEach(function(fila) {
+            const nc = fila.querySelector('td.lineItemName'); if (!nc) return;
+            const a = nc.querySelector('a'), txt = norm(a ? a.textContent : nc.textContent);
+            const hit = lista.find(function(x) { return x[0] === txt; }); if (!hit || out[hit[1]]) return;
+            const vals = [];
+            fila.querySelectorAll('td.numeric, td.actualVolume').forEach(function(td) { const v = ptPerfNum(td.textContent); if (v !== null) vals.push(v); });
+            if (vals.length >= 2) { const e = ptPerfEntry(hit[1], vals); if (e) out[hit[1]] = e; }
+        });
+        return out;
     }
 
-    function syncTrackerButton() {
-        hideTrackerThumbnail();
-        const b = document.getElementById('fclm-tracker-btn');
-        if (!b) return;
-        const panel = document.getElementById('fclm-tracker-panel');
-        const abierto = !!panel && !panel.classList.contains('minimizado') && panel.style.display !== 'none';
-        b.style.background = abierto ? '#0a84ff' : 'rgba(255,255,255,0.07)';
-        b.style.color = abierto ? '#ffffff' : '#f5f5f7';
-        b.dataset.abierto = abierto ? '1' : '0';
+    // ---------- estilos ----------
+    function ptInjectStyles() {
+        if (document.getElementById('obpt-styles')) return;
+        const st = document.createElement('style'); st.id = 'obpt-styles';
+        st.textContent =
+            '#ob-pt-panel *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}' +
+            '#ob-pt-panel table{width:100%;border-collapse:separate;border-spacing:0;font-size:11.5px;}' +
+            '#ob-pt-panel th{color:#8e8e93;font-weight:500;font-size:10px;text-align:center;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,0.08);}' +
+            '#ob-pt-panel th:first-child,#ob-pt-panel td:first-child{text-align:left;}' +
+            '#ob-pt-panel td{color:#f5f5f7;text-align:center;padding:5px 6px;border-bottom:1px solid rgba(255,255,255,0.05);white-space:nowrap;font-variant-numeric:tabular-nums;}' +
+            '#ob-pt-panel tr:last-child td{border-bottom:none;}' +
+            '#ob-pt-panel tbody tr{transition:background .15s ease;} #ob-pt-panel tbody tr:hover{background:rgba(255,255,255,0.04);}' +
+            '.obpt-pill{display:inline-block;min-width:58px;padding:2px 8px;border-radius:980px;font-weight:600;font-size:11px;}' +
+            '.obpt-g{background:rgba(48,209,88,0.16);color:#30d158;} .obpt-y{background:rgba(255,159,10,0.16);color:#ff9f0a;}' +
+            '.obpt-r{background:rgba(255,69,58,0.16);color:#ff453a;} .obpt-n{background:rgba(255,255,255,0.06);color:#8e8e93;}' +
+            '.obpt-tg{color:#30d158;} .obpt-tr{color:#ff453a;} .obpt-tn{color:#8e8e93;}' +
+            '.obpt-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;}' +
+            '.obpt-node{display:flex;align-items:center;gap:6px;color:#f5f5f7;font-weight:600;font-size:11.5px;margin:2px 0 4px;}' +
+            '.obpt-node i{display:inline-block;width:3px;height:12px;border-radius:2px;}' +
+            '.obpt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}' +
+            '@media (max-width:820px){.obpt-grid{grid-template-columns:1fr;}}' +
+            '.obpt-loading{color:#8e8e93;font-size:12px;text-align:center;padding:18px 0;}' +
+            '.obpt-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:980px;background:rgba(255,255,255,0.06);color:#aeaeb2;font-size:10.5px;}' +
+            '.obpt-shimmer{background:linear-gradient(90deg,rgba(255,255,255,0.04),rgba(255,255,255,0.10),rgba(255,255,255,0.04));background-size:200% 100%;animation:obptSh 1.2s ease-in-out infinite;border-radius:8px;height:14px;margin:6px 0;}' +
+            '@keyframes obptSh{0%{background-position:200% 0}100%{background-position:-200% 0}}';
+        document.head.appendChild(st);
     }
+
+    // ---------- panel flotante con animación ----------
+    let ptView = null, ptTimer = null, ptBusy = false;
+    function ptPanel() {
+        let p = document.getElementById('ob-pt-panel');
+        if (p) return p;
+        ptInjectStyles();
+        p = document.createElement('div');
+        p.id = 'ob-pt-panel';
+        p.style.cssText = 'position:fixed;left:12px;width:min(760px,calc(100vw - 24px));z-index:99999;display:none;' +
+            'background:rgba(10,10,12,0.94);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);' +
+            'border:1px solid rgba(255,255,255,0.10);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.55);color:#f5f5f7;' +
+            'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,sans-serif;overflow:hidden;' +
+            'transform-origin:top left;will-change:transform,opacity,filter;';
+        p.innerHTML =
+            '<div id="obpt-head" title="Arrastra para mover \u00B7 doble clic para regresar a su lugar" style="cursor:grab;user-select:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);">' +
+              '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+                '<span id="obpt-icon" style="width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;background:linear-gradient(135deg,#0a84ff,#5e5ce6);box-shadow:0 4px 14px rgba(10,132,255,0.35);"></span>' +
+                '<div style="min-width:0;"><div id="obpt-title" style="font-weight:600;font-size:13.5px;letter-spacing:-0.1px;"></div>' +
+                '<div id="obpt-sub" style="color:#8e8e93;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div></div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:6px;">' +
+                '<button id="obpt-refresh" title="Actualizar" style="width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#f5f5f7;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s ease,transform .45s cubic-bezier(.4,0,.2,1);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>' +
+                '<button id="obpt-close" title="Cerrar" style="width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#f5f5f7;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s ease;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" style="display:block;"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' +
+              '</div>' +
+            '</div>' +
+            '<div id="obpt-body" style="padding:10px 12px 12px;overflow:auto;transition:opacity .2s ease;"></div>';
+        document.body.appendChild(p);
+        const hov = function(b) { b.addEventListener('mouseenter', function() { b.style.background = '#0a84ff'; }); b.addEventListener('mouseleave', function() { b.style.background = 'rgba(255,255,255,0.08)'; }); };
+        const rb = p.querySelector('#obpt-refresh'), cb = p.querySelector('#obpt-close');
+        hov(rb); hov(cb);
+        let giro = 0;
+        rb.addEventListener('click', function() { giro += 360; rb.style.transform = 'rotate(' + giro + 'deg)'; ptRefresh(); });
+        cb.addEventListener('click', ptClose);
+        ptEnableDrag(p);
+        return p;
+    }
+    const PT_KEY_POS = 'obpt_pos';
+    function ptDefaultPos() {
+        const ban = document.getElementById('fclm-banner');
+        const r = ban ? ban.getBoundingClientRect() : null;
+        return { left: r ? Math.max(8, Math.round(r.left)) : 12, top: r ? Math.round(r.bottom + 8) : 56 };
+    }
+    function ptClamp(p, pos) {
+        const w = p.offsetWidth || 760, maxL = Math.max(0, window.innerWidth - Math.min(w, window.innerWidth) );
+        return { left: Math.min(Math.max(0, pos.left), maxL), top: Math.min(Math.max(0, pos.top), Math.max(0, window.innerHeight - 60)) };
+    }
+    function ptApplyPos(p, pos) {
+        p.style.left = pos.left + 'px'; p.style.top = pos.top + 'px'; p.style.right = 'auto';
+        p.querySelector('#obpt-body').style.maxHeight = 'calc(100vh - ' + (pos.top + 70) + 'px)';
+    }
+    function ptPlace(p) {
+        const saved = ptLoad(PT_KEY_POS, null);
+        ptApplyPos(p, ptClamp(p, saved && typeof saved.left === 'number' ? saved : ptDefaultPos()));
+    }
+    function ptEnableDrag(p) {
+        const head = p.querySelector('#obpt-head');
+        let drag = null;
+        head.addEventListener('mousedown', function(e) {
+            if (e.button !== 0 || e.target.closest('button')) return;
+            const r = p.getBoundingClientRect();
+            drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+            head.style.cursor = 'grabbing';
+            p.style.transition = 'box-shadow .2s ease';
+            p.style.boxShadow = '0 30px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(10,132,255,0.45)';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!drag) return;
+            ptApplyPos(p, ptClamp(p, { left: e.clientX - drag.dx, top: e.clientY - drag.dy }));
+        });
+        document.addEventListener('mouseup', function() {
+            if (!drag) return;
+            drag = null;
+            head.style.cursor = 'grab';
+            p.style.boxShadow = '0 24px 60px rgba(0,0,0,0.55)';
+            document.body.style.userSelect = '';
+            ptSave(PT_KEY_POS, { left: parseInt(p.style.left, 10) || 0, top: parseInt(p.style.top, 10) || 0 });
+        });
+        head.addEventListener('dblclick', function(e) {
+            if (e.target.closest('button')) return;
+            try { localStorage.removeItem(PT_KEY_POS); } catch (er) {}
+            p.style.transition = 'left .35s cubic-bezier(.34,1.56,.64,1), top .35s cubic-bezier(.34,1.56,.64,1)';
+            ptApplyPos(p, ptClamp(p, ptDefaultPos()));
+        });
+        window.addEventListener('resize', function() { if (p.style.display !== 'none') ptPlace(p); });
+    }
+    function ptOpen(view) {
+        const p = ptPanel();
+        const body = p.querySelector('#obpt-body');
+        const yaAbierto = p.style.display !== 'none' && ptView;
+        ptView = view;
+        p.querySelector('#obpt-icon').textContent = view === 'perf' ? '\u26A1' : '\uD83D\uDCC8';
+        p.querySelector('#obpt-title').textContent = view === 'perf' ? 'Performance' : 'Avance al Plan';
+        ptPlace(p);
+        if (yaAbierto) {
+            body.style.opacity = '0';
+            setTimeout(function() { ptRefresh(); body.style.opacity = '1'; }, 180);
+        } else {
+            p.style.transition = 'none';
+            p.style.display = 'block';
+            p.style.opacity = '0';
+            p.style.transform = 'translateY(-14px) scale(0.92)';
+            p.style.filter = 'blur(8px)';
+            void p.offsetWidth;
+            p.style.transition = 'opacity .32s ease, transform .5s cubic-bezier(.34,1.56,.64,1), filter .32s ease';
+            p.style.opacity = '1';
+            p.style.transform = 'translateY(0) scale(1)';
+            p.style.filter = 'blur(0)';
+            ptRefresh();
+            ptStartTimer();
+        }
+        ptSyncButtons();
+    }
+    function ptClose() {
+        const p = document.getElementById('ob-pt-panel');
+        ptView = null;
+        ptSyncButtons();
+        if (ptTimer) { clearInterval(ptTimer); ptTimer = null; }
+        if (!p || p.style.display === 'none') return;
+        p.style.transition = 'opacity .22s ease, transform .26s cubic-bezier(.4,0,1,1), filter .22s ease';
+        p.style.opacity = '0';
+        p.style.transform = 'translateY(-10px) scale(0.95)';
+        p.style.filter = 'blur(6px)';
+        setTimeout(function() { if (!ptView) p.style.display = 'none'; }, 270);
+    }
+    function ptToggle(view) { if (ptView === view) ptClose(); else ptOpen(view); }
+    function ptStartTimer() {
+        if (ptTimer) clearInterval(ptTimer);
+        const min = Number(ptCargarConfig().refreshMinutes) || PT.defaultRefreshMin;
+        ptTimer = setInterval(function() { if (ptView) ptRefresh(); }, min * 60000);
+    }
+    function ptSyncButtons() {
+        ['avance', 'perf'].forEach(function(v) {
+            const b = document.getElementById('obpt-btn-' + v);
+            if (!b) return;
+            const on = ptView === v;
+            b.dataset.on = on ? '1' : '0';
+            b.style.background = on ? '#0a84ff' : 'rgba(255,255,255,0.07)';
+            b.style.color = on ? '#ffffff' : '#f5f5f7';
+            b.style.boxShadow = on ? '0 6px 16px rgba(10,132,255,0.35)' : 'none';
+        });
+    }
+    function ptButton(view, icono, texto) {
+        const b = document.createElement('button');
+        b.id = 'obpt-btn-' + view;
+        b.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:6px;background:rgba(255,255,255,0.10);font-size:11px;">' + icono + '</span><span>' + texto + '</span>';
+        b.style.cssText = 'display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,0.07);border:1px solid rgba(10,132,255,0.45);color:#f5f5f7;border-radius:980px;padding:5px 14px 5px 6px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease;';
+        b.addEventListener('mouseenter', function() { b.style.background = '#0a84ff'; b.style.color = '#ffffff'; b.style.transform = 'translateY(-1px)'; b.style.boxShadow = '0 6px 16px rgba(10,132,255,0.35)'; });
+        b.addEventListener('mouseleave', function() { b.style.transform = 'none'; ptSyncButtons(); });
+        b.addEventListener('click', function() { ptToggle(view); });
+        return b;
+    }
+
+    // ---------- render ----------
+    function ptFmt(n) { return (n === null || n === undefined || isNaN(n)) ? '\u2014' : Math.round(n).toLocaleString('en-US'); }
+    function ptFmtD(d) { return (d === null || d === undefined || isNaN(d)) ? '\u2014' : (d >= 0 ? '+' : '') + Math.round(d).toLocaleString('en-US'); }
+    function ptLoadingHTML() { return '<div class="obpt-shimmer"></div><div class="obpt-shimmer" style="width:80%"></div><div class="obpt-shimmer" style="width:60%"></div>'; }
+
+    async function ptRefresh() {
+        const p = document.getElementById('ob-pt-panel'); if (!p || !ptView || ptBusy) return;
+        const body = p.querySelector('#obpt-body'), sub = p.querySelector('#obpt-sub');
+        ptBusy = true;
+        if (!body.innerHTML || body.dataset.view !== ptView) body.innerHTML = ptLoadingHTML();
+        const view = ptView;
+        try {
+            ptCargarConfig();
+            const tkReal = ptDetectarTurno(), tk = tkReal || 'night';
+            const hora = ptAhora().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const html = view === 'perf' ? await ptRenderPerf(tk) : await ptRenderAvance(tk, tkReal);
+            if (ptView !== view) return;
+            body.innerHTML = html; body.dataset.view = view;
+            const man = ptTurnoManual().activo ? ' \u00B7 Manual' : '';
+            sub.textContent = (tkReal ? PT.turnos[tk].nombre : 'Fuera de turno \u00B7 corte Night Shift') + man + ' \u00B7 Actualizado ' + hora;
+        } catch (e) {
+            body.innerHTML = '<div class="obpt-loading">No se pudieron obtener los datos (' + (e && e.message ? e.message : 'error') + ').</div>';
+        } finally { ptBusy = false; }
+    }
+
+    async function ptRenderAvance(tk, tkReal) {
+        const plan = ptCargarPlan();
+        const datos = { TLC1: await ptDatosNodo('TLC1', tk), QYY7: await ptDatosNodo('QYY7', tk) };
+        const tr = ptTranscurrido(tk), rest = Math.max(0, ptHorasTotales(tk) - tr), brk = tkReal ? ptBreakActual(tk) : null;
+        let h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
+                '<span class="obpt-chip">\u23F1 Efectivo ' + ptHoras(tr) + '</span>' +
+                '<span class="obpt-chip">\u23F3 Restante ' + ptHoras(rest) + '</span>' +
+                '<span class="obpt-chip"><span style="color:#30d158;">\u25CF</span> \u2265 ' + PT.semaforo.verde + '% <span style="color:#ff9f0a;margin-left:4px;">\u25CF</span> \u2265 ' + PT.semaforo.amarillo + '% <span style="color:#ff453a;margin-left:4px;">\u25CF</span> menor</span>' +
+                (brk ? '<span class="obpt-chip" style="color:#ff9f0a;">\u23F8 ' + brk.nombre + '</span>' : '') +
+                '</div><div class="obpt-grid">';
+        let sinPlan = true;
+        Object.keys(PT.nodos).forEach(function(nk) {
+            const color = nk === 'TLC1' ? '#0073bb' : '#7b2d8b';
+            h += '<div class="obpt-card"><div class="obpt-node"><i style="background:' + color + ';"></i>' + nk + '</div>' +
+                 '<table><thead><tr><th>Flujo</th><th>Plan</th><th>Esperado</th><th>Actual</th><th>\u0394</th><th>Status</th></tr></thead><tbody>';
+            PT.nodos[nk].flujos.forEach(function(f) {
+                const pf = plan[nk] && plan[nk][f.id] ? plan[nk][f.id] : null;
+                const act = datos[nk][f.id];
+                const uph = datos[nk][f.id + '_uph'] || 0;
+                const c = (pf && act !== null && act !== undefined) ? ptAvance(pf, act, tk, uph) : {};
+                if (pf) sinPlan = false;
+                const sem = ptSem(c.pctVsEsperado);
+                const dcls = c.delta === undefined || c.delta === null ? 'obpt-tn' : (c.delta >= 0 ? 'obpt-tg' : 'obpt-tr');
+                h += '<tr><td>' + f.label + '</td><td>' + (pf ? ptFmt(pf) : '\u2014') + '</td><td>' + ptFmt(c.esperado) + '</td><td>' + ptFmt(act) + '</td>' +
+                     '<td class="' + dcls + '">' + ptFmtD(c.delta) + '</td>' +
+                     '<td><span class="obpt-pill obpt-' + sem + '">' + (c.pct !== undefined && c.pct !== null ? c.pct.toFixed(1) + '%' : 'N/A') + '</span></td></tr>';
+            });
+            h += '</tbody></table></div>';
+        });
+        h += '</div>';
+        if (sinPlan) h += '<div class="obpt-loading" style="padding:10px 0 0;">Captura el plan del turno en \u2699\uFE0F Configuraci\u00F3n \u2192 Avance al Plan.</div>';
+        return h;
+    }
+
+    async function ptRenderPerf(tk) {
+        const nombres = {}; PT_PERF.secciones.forEach(function(s) { (nombres[s.wh] = nombres[s.wh] || []).push.apply(nombres[s.wh], s.procesos); });
+        const data = {};
+        for (const wh of ['TLC1', 'QYY7']) { try { data[wh] = ptPerfExtract(await ptFetch(ptURL(wh, tk)), nombres[wh]); } catch (e) { data[wh] = {}; } }
+        const cls = function(p) { if (p === null || p === undefined || isNaN(p) || p === 0) return 'n'; if (p < PT_PERF.thresholds.red) return 'r'; if (p < PT_PERF.thresholds.yellow) return 'y'; return 'g'; };
+        let h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"><span class="obpt-chip"><span style="color:#30d158;">\u25CF</span> \u2265 ' + PT_PERF.thresholds.yellow +
+                '% <span style="color:#ff9f0a;margin-left:4px;">\u25CF</span> ' + PT_PERF.thresholds.red + '\u2013' + PT_PERF.thresholds.yellow + '% <span style="color:#ff453a;margin-left:4px;">\u25CF</span> &lt; ' + PT_PERF.thresholds.red + '%</span></div><div class="obpt-grid">';
+        PT_PERF.secciones.forEach(function(s) {
+            const color = s.wh === 'TLC1' ? '#0073bb' : '#7b2d8b';
+            h += '<div class="obpt-card"><div class="obpt-node"><i style="background:' + color + ';"></i>' + s.titulo + '</div>' +
+                 '<table><thead><tr><th>Proceso</th><th>Rate</th><th>Plan</th><th>Var (h)</th><th>% Plan</th></tr></thead><tbody>';
+            s.procesos.forEach(function(n) {
+                const e = data[s.wh][n], dn = PT_PERF.nombres[n] || n;
+                if (!e) { h += '<tr style="opacity:.45;"><td>' + dn + '</td><td>\u2014</td><td>\u2014</td><td>\u2014</td><td>\u2014</td></tr>'; return; }
+                const v = e.variance || 0;
+                h += '<tr><td>' + dn + '</td><td>' + ptFmt(e.actual) + '</td><td>' + ptFmt(e.plan) + '</td><td class="' + (v >= 0 ? 'obpt-tg' : 'obpt-tr') + '">' + (v >= 0 ? '+' : '') + v.toFixed(2) + '</td>' +
+                     '<td><span class="obpt-pill obpt-' + cls(e.pct) + '">' + (e.pct || 0).toFixed(1) + '%</span></td></tr>';
+            });
+            h += '</tbody></table></div>';
+        });
+        return h + '</div>';
+    }
+
+    // ---------- integración con ⚙️ Configuración del OB ----------
+    function ptSettingsHTML() {
+        const plan = ptCargarPlan(), cfg = ptCargarConfig();
+        const sec = function(t, c) { return '<div style="margin-bottom:12px;"><div style="color:' + (c || '#8e8e93') + ';font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:6px;">' + t + '</div>'; };
+        const inp = 'background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#f5f5f7;padding:4px 7px;font-size:11px;text-align:center;font-family:inherit;color-scheme:dark;';
+        const fila = function(lbl, ctrl) { return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:11px;font-weight:600;">' + lbl + '</span>' + ctrl + '</div>'; };
+        const hm = function(o) { return ptPad(o.h) + ':' + ptPad(o.m); };
+        let h = '';
+        Object.keys(PT.nodos).forEach(function(nk) {
+            h += sec('Avance al Plan \u00B7 ' + nk, nk === 'TLC1' ? '#0073bb' : '#7b2d8b');
+            PT.nodos[nk].flujos.forEach(function(f) {
+                const v = plan[nk] && plan[nk][f.id] ? plan[nk][f.id] : '';
+                h += fila(f.label + ' <span style="color:#8e8e93;font-weight:500;">(' + (f.unidad || 'units') + ')</span>', '<input type="number" min="0" step="1" data-pt-plan="' + nk + ':' + f.id + '" value="' + v + '" placeholder="Plan" style="width:90px;' + inp + '">');
+            });
+            h += '</div>';
+        });
+        h += sec('Turno');
+        h += fila('Detecci\u00F3n autom\u00E1tica', '<input type="checkbox" id="obpt-auto" ' + (!cfg.turnoManual ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#0a84ff;cursor:pointer;">');
+        h += '<div id="obpt-manual" style="' + (cfg.turnoManual ? '' : 'display:none;') + '">';
+        h += fila('Tipo de turno', '<select id="obpt-tipo" style="' + inp + '"><option value="day"' + (cfg.manualTurnoTipo === 'day' ? ' selected' : '') + '>Day Shift</option><option value="night"' + (cfg.manualTurnoTipo === 'night' ? ' selected' : '') + '>Night Shift</option></select>');
+        h += fila('Inicio', '<input type="datetime-local" id="obpt-ini" value="' + (cfg.manualInicio || '') + '" style="' + inp + '">');
+        h += fila('Fin', '<input type="datetime-local" id="obpt-fin" value="' + (cfg.manualFin || '') + '" style="' + inp + '">');
+        h += '</div></div>';
+        h += sec('Auto-refresh y sem\u00E1foro');
+        h += fila('Actualizar cada', '<select id="obpt-refresh-min" style="' + inp + '">' + PT.refreshIntervals.map(function(m) { return '<option value="' + m + '"' + (Number(cfg.refreshMinutes) === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select>');
+        h += fila('<span style="color:#30d158;">\u25CF</span> Verde \u2265 (% del esperado)', '<input type="number" id="obpt-verde" min="1" max="200" value="' + PT.semaforo.verde + '" style="width:70px;' + inp + '">');
+        h += fila('<span style="color:#ff9f0a;">\u25CF</span> Amarillo \u2265 (% del esperado)', '<input type="number" id="obpt-amarillo" min="1" max="200" value="' + PT.semaforo.amarillo + '" style="width:70px;' + inp + '">');
+        h += '</div>';
+        ['night', 'day'].forEach(function(k) {
+            const b = PT.turnos[k].breaks;
+            h += sec('Breaks \u00B7 ' + PT.turnos[k].nombre);
+            [0, 1].forEach(function(i) {
+                h += fila('Break ' + (i + 1), '<span style="display:flex;gap:6px;align-items:center;"><input type="time" id="obpt-' + k + '-b' + i + '-ini" value="' + hm(b[i].inicio) + '" style="' + inp + '"><span style="color:#8e8e93;">\u2192</span><input type="time" id="obpt-' + k + '-b' + i + '-fin" value="' + hm(b[i].fin) + '" style="' + inp + '"></span>');
+            });
+            h += '</div>';
+        });
+        return h;
+    }
+    function ptBindSettings(ov) {
+        const auto = ov.querySelector('#obpt-auto'), box = ov.querySelector('#obpt-manual');
+        if (auto && box) auto.addEventListener('change', function() { box.style.display = auto.checked ? 'none' : ''; });
+    }
+    function ptSaveSettings(ov) {
+        if (!ov.querySelector('#obpt-auto')) return;
+        const plan = {};
+        ov.querySelectorAll('input[data-pt-plan]').forEach(function(i) {
+            const kk = i.dataset.ptPlan.split(':'), v = parseInt(i.value, 10);
+            plan[kk[0]] = plan[kk[0]] || {};
+            plan[kk[0]][kk[1]] = (isNaN(v) || v <= 0) ? null : v;
+        });
+        ptSave(PT_KEY_PLAN, plan);
+        const t = function(id) { const v = (ov.querySelector('#' + id) || {}).value || '00:00'; const p = v.split(':').map(Number); return { h: p[0] || 0, m: p[1] || 0 }; };
+        const br = {};
+        ['night', 'day'].forEach(function(k) {
+            br[k] = [0, 1].map(function(i) {
+                const ini = t('obpt-' + k + '-b' + i + '-ini'), fin = t('obpt-' + k + '-b' + i + '-fin');
+                if (fin.h < ini.h || (fin.h === 0 && fin.m === 0)) fin.nextDay = true;
+                return { inicio: ini, fin: fin, nombre: 'Break ' + (i + 1) };
+            });
+        });
+        ptSave(PT_KEY_CFG, {
+            refreshMinutes: parseInt(ov.querySelector('#obpt-refresh-min').value, 10) || PT.defaultRefreshMin,
+            breaks: br,
+            turnoManual: !ov.querySelector('#obpt-auto').checked,
+            manualTurnoTipo: ov.querySelector('#obpt-tipo').value,
+            manualInicio: ov.querySelector('#obpt-ini').value,
+            manualFin: ov.querySelector('#obpt-fin').value,
+            semaforoVerde: parseInt(ov.querySelector('#obpt-verde').value, 10) || 95,
+            semaforoAmarillo: parseInt(ov.querySelector('#obpt-amarillo').value, 10) || 85
+        });
+        ptCargarConfig();
+        if (ptView) { ptStartTimer(); ptRefresh(); }
+    }
+
 
     // ============= PLAN EDITOR MODAL =============
     function openPlanEditor(cpc, mm, wc) {
@@ -1204,6 +1745,7 @@
             html += '</div>';
         });
 
+        html += ptSettingsHTML();
         html += '<div style="display:flex;gap:8px;margin-top:14px;"><button id="fclm-settings-save" style="flex:1;padding:8px;background:#0a84ff;border:none;border-radius:980px;color:#fff;font-weight:600;font-size:12px;cursor:pointer;transition:background .15s ease;">Guardar</button><button id="fclm-settings-reset" style="padding:8px 16px;background:rgba(255,255,255,0.08);border:none;border-radius:980px;color:#ff9f0a;font-weight:600;font-size:12px;cursor:pointer;">Resetear</button><button id="fclm-settings-cancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.08);border:none;border-radius:980px;color:#aeaeb2;font-weight:600;font-size:12px;cursor:pointer;">Cancelar</button></div>';
 
         modal.innerHTML = html;
@@ -1211,6 +1753,7 @@
         document.body.appendChild(overlay);
 
         // Mode toggles
+        ptBindSettings(overlay);
         overlay.querySelectorAll('.fclm-cfg-mode').forEach(r => {
             r.addEventListener('change', () => {
                 const inputEl = document.getElementById(r.dataset.input);
@@ -1265,6 +1808,7 @@
                 }
             }
 
+            ptSaveSettings(overlay);
             overlay.remove();
             initBanner();
         });
