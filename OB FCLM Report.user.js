@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.2
-// @description  v3.2: Banner ya no parpadea (solo redibuja si cambian los datos) y botón ✎ para editar el plan desde el panel
+// @version      3.2.1
+// @description  v3.2.1: Auto-update revisa GitHub cada 5 min, evita caché del CDN y usa su propia clave de aviso
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.2';
+    const SCRIPT_VERSION = '3.2.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1881,9 +1881,10 @@
     // ============= VERSION STATUS BADGE =============
     async function checkVersionStatus(btnEl) {
         const URL_RAW = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js';
-        const setOk = (txt) => { btnEl.textContent = txt; btnEl.style.color = '#8e8e93'; btnEl.style.background = 'rgba(255,255,255,0.08)'; };
+        if (!btnEl || !btnEl.isConnected) return;
+        const setOk = (txt) => { btnEl.onclick = null; btnEl.style.cursor = 'default'; btnEl.textContent = txt; btnEl.style.color = '#8e8e93'; btnEl.style.background = 'rgba(255,255,255,0.08)'; };
         try {
-            const response = await fetch(URL_RAW, { cache: 'no-store' });
+            const response = await fetch(URL_RAW + '?t=' + Date.now(), { cache: 'no-store' });
             if (!response.ok) { setOk('No se pudo verificar'); return; }
             const text = await response.text();
             const vMatch = text.match(/\/\/ @version\s+([\d.]+)/);
@@ -1895,9 +1896,9 @@
                 btnEl.style.fontWeight = '600';
                 btnEl.style.background = '#0a84ff';
                 btnEl.style.cursor = 'pointer';
-                btnEl.addEventListener('mouseenter', () => { btnEl.style.background = '#409cff'; });
-                btnEl.addEventListener('mouseleave', () => { btnEl.style.background = '#0a84ff'; });
-                btnEl.addEventListener('click', () => { window.open(URL_RAW, '_blank'); });
+                btnEl.onmouseenter = () => { btnEl.style.background = '#409cff'; };
+                btnEl.onmouseleave = () => { btnEl.style.background = '#0a84ff'; };
+                btnEl.onclick = () => { window.open(URL_RAW + '?t=' + Date.now(), '_blank'); };
             } else {
                 setOk('Actualizado');
             }
@@ -1919,13 +1920,13 @@
     }
 
     // ============= AUTO-UPDATE CHECKER =============
-    const UPDATE_NOTIFICATION_KEY = 'fclm_update_notified_version';
+    const UPDATE_NOTIFICATION_KEY = 'obfclm_update_notified_version';
 
     async function checkForUpdates() {
         try {
             const currentVersion = SCRIPT_VERSION;
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js';
-            const response = await fetch(rawUrl, { cache: 'no-store' });
+            const response = await fetch(rawUrl + '?t=' + Date.now(), { cache: 'no-store' });
             if (!response.ok) throw new Error('No se pudo obtener el script');
             const text = await response.text();
             const versionMatch = text.match(/\/\/ @version\s+([\d.]+)/);
@@ -1963,5 +1964,11 @@
     } else {
         setTimeout(checkForUpdates, 2000);
     }
+    // Revisa GitHub cada 5 minutos (antes dependía de que el banner se redibujara)
+    setInterval(() => {
+        checkForUpdates();
+        const vb = document.getElementById('fclm-version-status-btn');
+        if (vb) checkVersionStatus(vb);
+    }, 5 * 60 * 1000);
 
 })();
