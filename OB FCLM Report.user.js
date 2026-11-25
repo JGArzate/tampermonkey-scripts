@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.2.3
-// @description  v3.2.3: Revisión de actualizaciones vía GM_xmlhttpRequest (FCLM bloqueaba la consulta a GitHub)
+// @version      3.3
+// @description  v3.3: Popup de nueva versión más grande con animación y hover estilo Apple
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.2.3';
+    const SCRIPT_VERSION = '3.3';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1976,17 +1976,80 @@
     }
 
     function showUpdateNotification(newVersion, currentVersion) {
-        if (!document.getElementById('fclm-update-styles')) {
-            const style = document.createElement('style');
-            style.id = 'fclm-update-styles';
-            style.textContent = `.fclm-update-banner{position:fixed;top:14px;right:14px;background:rgba(10,10,12,0.96);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:12px 14px;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;gap:14px;animation:fclmSlideIn .3s ease-out forwards;max-width:340px}.fclm-update-banner.hide{animation:fclmSlideOut .3s ease-out forwards}@keyframes fclmSlideIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes fclmSlideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(-12px);opacity:0}}.fclm-update-content{flex:1;line-height:1.35}.fclm-update-title{font-weight:600;font-size:12px}.fclm-update-version{font-size:11px;color:#8e8e93}.fclm-update-buttons{display:flex;gap:6px;align-items:center;white-space:nowrap}.fclm-update-btn{padding:5px 12px;border:none;border-radius:980px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:background .15s ease}.fclm-update-btn.update{background:#0a84ff;color:#fff}.fclm-update-btn.update:hover{background:#409cff}.fclm-update-btn.dismiss{background:rgba(255,255,255,0.08);color:#aeaeb2;width:24px;height:24px;padding:0;font-size:12px}.fclm-update-btn.dismiss:hover{background:#0a84ff;color:#fff}`;
-            document.head.appendChild(style);
-        }
-        const banner = document.createElement('div');
-        banner.className = 'fclm-update-banner';
-        banner.innerHTML = `<div class="fclm-update-content"><div class="fclm-update-title">OB FCLM Report</div><div class="fclm-update-version">Actualizaci\u00F3n disponible \u00B7 v${currentVersion} \u2192 v${newVersion}</div></div><div class="fclm-update-buttons"><button class="fclm-update-btn update" onclick="window.open('https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js');this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">Instalar</button><button class="fclm-update-btn dismiss" onclick="this.closest('.fclm-update-banner').classList.add('hide');setTimeout(()=>this.closest('.fclm-update-banner').remove(),300);">\u2715</button></div>`;
-        document.body.appendChild(banner);
-        setTimeout(() => { if (banner.parentNode) { banner.classList.add('hide'); setTimeout(() => banner.remove(), 300); } }, 8000);
+        document.getElementById('obfclm-update-pop')?.remove();
+        const URL_INSTALL = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js';
+        // Estilos en línea (inmunes a CSP) + transiciones estilo Apple
+        const wrap = document.createElement('div');
+        wrap.id = 'obfclm-update-pop';
+        wrap.style.cssText = 'position:fixed;top:24px;left:50%;z-index:2147483000;width:min(440px,calc(100vw - 32px));' +
+            'background:rgba(18,18,22,0.82);backdrop-filter:blur(40px) saturate(190%);-webkit-backdrop-filter:blur(40px) saturate(190%);' +
+            'border:1px solid rgba(255,255,255,0.14);border-radius:22px;padding:22px 22px 18px;color:#f5f5f7;' +
+            'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,sans-serif;' +
+            'box-shadow:0 30px 80px rgba(0,0,0,0.55),0 0 0 0.5px rgba(255,255,255,0.06) inset;' +
+            'opacity:0;transform:translate(-50%,-28px) scale(0.86);filter:blur(10px);' +
+            'transition:opacity .45s ease,transform .7s cubic-bezier(.34,1.56,.64,1),filter .45s ease,box-shadow .3s ease;';
+        wrap.innerHTML =
+            '<div style="display:flex;align-items:center;gap:16px;">' +
+              '<div style="flex-shrink:0;width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a84ff,#5e5ce6);box-shadow:0 8px 22px rgba(10,132,255,0.45);">' +
+                '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>' +
+              '</div>' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:17px;font-weight:700;letter-spacing:-0.3px;">Nueva versi\u00F3n disponible</div>' +
+                '<div style="font-size:13px;color:#aeaeb2;margin-top:3px;">OB FCLM Report</div>' +
+                '<div style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:4px 12px;border-radius:980px;background:rgba(255,255,255,0.08);font-size:12.5px;font-weight:600;">' +
+                  '<span style="color:#8e8e93;">v' + currentVersion + '</span><span style="color:#636366;">\u2192</span><span style="color:#30d158;">v' + newVersion + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:10px;margin-top:18px;">' +
+              '<button data-act="later" style="flex:1;padding:11px 0;border:none;border-radius:980px;background:rgba(255,255,255,0.10);color:#f5f5f7;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:background .2s ease,transform .2s ease;">M\u00E1s tarde</button>' +
+              '<button data-act="install" style="flex:1.4;padding:11px 0;border:none;border-radius:980px;background:#0a84ff;color:#fff;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(10,132,255,0.40);transition:background .2s ease,transform .2s ease,box-shadow .2s ease;">Instalar ahora</button>' +
+            '</div>' +
+            '<div data-bar style="height:3px;border-radius:3px;background:rgba(255,255,255,0.08);margin-top:14px;overflow:hidden;"><div style="height:100%;width:100%;background:#0a84ff;transform-origin:left;transition:transform 15s linear;"></div></div>';
+        document.body.appendChild(wrap);
+
+        const bar = wrap.querySelector('[data-bar] > div');
+        let timer = null, cerrado = false;
+        const cerrar = () => {
+            if (cerrado) return; cerrado = true; clearTimeout(timer);
+            wrap.style.transition = 'opacity .3s ease,transform .38s cubic-bezier(.4,0,1,1),filter .3s ease';
+            wrap.style.opacity = '0';
+            wrap.style.transform = 'translate(-50%,-20px) scale(0.92)';
+            wrap.style.filter = 'blur(8px)';
+            setTimeout(() => wrap.remove(), 400);
+        };
+        const arrancar = () => { bar.style.transition = 'transform 15s linear'; bar.style.transform = 'scaleX(0)'; timer = setTimeout(cerrar, 15000); };
+        const pausar = () => { clearTimeout(timer); const w = bar.getBoundingClientRect().width / bar.parentElement.getBoundingClientRect().width; bar.style.transition = 'transform .3s ease'; bar.style.transform = 'scaleX(1)'; return w; };
+
+        // Aparición
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            wrap.style.opacity = '1';
+            wrap.style.transform = 'translate(-50%,0) scale(1)';
+            wrap.style.filter = 'blur(0)';
+            setTimeout(arrancar, 500);
+        }));
+
+        // Hover del popup: se eleva un poco y pausa el cierre automático
+        wrap.addEventListener('mouseenter', () => {
+            if (cerrado) return; pausar();
+            wrap.style.transform = 'translate(-50%,2px) scale(1.025)';
+            wrap.style.boxShadow = '0 40px 100px rgba(0,0,0,0.65),0 0 0 1px rgba(10,132,255,0.45)';
+        });
+        wrap.addEventListener('mouseleave', () => {
+            if (cerrado) return;
+            wrap.style.transform = 'translate(-50%,0) scale(1)';
+            wrap.style.boxShadow = '0 30px 80px rgba(0,0,0,0.55),0 0 0 0.5px rgba(255,255,255,0.06) inset';
+            setTimeout(() => { if (!cerrado) arrancar(); }, 50);
+        });
+
+        // Botones (sin onclick inline: CSP)
+        const bLater = wrap.querySelector('[data-act="later"]'), bInst = wrap.querySelector('[data-act="install"]');
+        bLater.addEventListener('mouseenter', () => { bLater.style.background = 'rgba(255,255,255,0.18)'; bLater.style.transform = 'translateY(-1px)'; });
+        bLater.addEventListener('mouseleave', () => { bLater.style.background = 'rgba(255,255,255,0.10)'; bLater.style.transform = 'none'; });
+        bInst.addEventListener('mouseenter', () => { bInst.style.background = '#409cff'; bInst.style.transform = 'translateY(-1px) scale(1.02)'; bInst.style.boxShadow = '0 10px 26px rgba(10,132,255,0.55)'; });
+        bInst.addEventListener('mouseleave', () => { bInst.style.background = '#0a84ff'; bInst.style.transform = 'none'; bInst.style.boxShadow = '0 6px 18px rgba(10,132,255,0.40)'; });
+        bLater.addEventListener('click', cerrar);
+        bInst.addEventListener('click', () => { window.open(URL_INSTALL + '?t=' + Date.now(), '_blank'); cerrar(); });
     }
 
     if (document.readyState === 'loading') {
