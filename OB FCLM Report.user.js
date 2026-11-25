@@ -2,12 +2,14 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.2.2
-// @description  v3.2.2: Botón actualizar del panel siempre consulta datos frescos y ya no mezcla Avance al Plan con Performance
+// @version      3.2.3
+// @description  v3.2.3: Revisión de actualizaciones vía GM_xmlhttpRequest (FCLM bloqueaba la consulta a GitHub)
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      raw.githubusercontent.com
+// @connect      github.com
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js
 // @downloadURL  https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js
@@ -16,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.2.2';
+    const SCRIPT_VERSION = '3.2.3';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1894,15 +1896,29 @@
         });
     }
 
+    // Descarga el script de GitHub: usa GM_xmlhttpRequest (evita CSP/CORS de FCLM) y si no, fetch
+    function fetchRemoteScript(url) {
+        const u = url + '?t=' + Date.now();
+        return new Promise((resolve, reject) => {
+            if (typeof GM_xmlhttpRequest === 'function') {
+                GM_xmlhttpRequest({ method: 'GET', url: u, nocache: true, timeout: 15000,
+                    headers: { 'Cache-Control': 'no-cache' },
+                    onload: (r) => (r.status >= 200 && r.status < 300) ? resolve(r.responseText) : reject(new Error('HTTP ' + r.status)),
+                    onerror: () => reject(new Error('Error de red')), ontimeout: () => reject(new Error('Timeout')) });
+            } else {
+                fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(resolve, reject);
+            }
+        });
+    }
+
     // ============= VERSION STATUS BADGE =============
     async function checkVersionStatus(btnEl) {
         const URL_RAW = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js';
         if (!btnEl || !btnEl.isConnected) return;
         const setOk = (txt) => { btnEl.onclick = null; btnEl.style.cursor = 'default'; btnEl.textContent = txt; btnEl.style.color = '#8e8e93'; btnEl.style.background = 'rgba(255,255,255,0.08)'; };
         try {
-            const response = await fetch(URL_RAW + '?t=' + Date.now(), { cache: 'no-store' });
-            if (!response.ok) { setOk('No se pudo verificar'); return; }
-            const text = await response.text();
+            let text;
+            try { text = await fetchRemoteScript(URL_RAW); } catch (er) { console.warn('[OB FCLM] Badge update:', er); setOk('No se pudo verificar'); return; }
             const vMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = vMatch ? vMatch[1] : null;
             if (!remoteVersion) { setOk('Sin versi\u00F3n'); return; }
@@ -1942,9 +1958,7 @@
         try {
             const currentVersion = SCRIPT_VERSION;
             const rawUrl = 'https://raw.githubusercontent.com/JGArzate/tampermonkey-scripts/main/OB%20FCLM%20Report.user.js';
-            const response = await fetch(rawUrl + '?t=' + Date.now(), { cache: 'no-store' });
-            if (!response.ok) throw new Error('No se pudo obtener el script');
-            const text = await response.text();
+            const text = await fetchRemoteScript(rawUrl);
             const versionMatch = text.match(/\/\/ @version\s+([\d.]+)/);
             const remoteVersion = versionMatch ? versionMatch[1] : null;
             if (!remoteVersion) return;
