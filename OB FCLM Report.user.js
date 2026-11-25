@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.1
-// @description  v3.1: Paneles Avance al Plan/Performance movibles (guardan posición, quedan encima del banner), icono de actualizar nuevo
+// @version      3.2
+// @description  v3.2: Banner ya no parpadea (solo redibuja si cambian los datos) y botón ✎ para editar el plan desde el panel
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.1';
+    const SCRIPT_VERSION = '3.2';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -702,7 +702,9 @@
     }
 
     function createBanner() {
-        document.getElementById('fclm-banner')?.remove();
+        const _prevBanner=document.getElementById('fclm-banner');
+        window._fclmRedraw=!!_prevBanner;
+        _prevBanner?.remove();
         document.getElementById('fclm-pill')?.remove();
         injectStyles();
         if (isMinimized) { createMinPill(); return; }
@@ -937,7 +939,22 @@
         if (versionBtn) checkVersionStatus(versionBtn);
     }
 
-    function initBanner(){ loadAllMetrics().then(createBanner); }
+    // Firma del contenido de FCLM (sin los elementos del tamper) para detectar cambios reales
+    function pageSignature(){
+        let txt='';
+        document.querySelectorAll('table').forEach(t=>{ if(!t.closest('#fclm-banner,#ob-pt-panel,#fclm-settings-overlay,#fclm-plan-editor')) txt+=t.textContent.length+'|'+t.textContent.slice(0,400); });
+        return txt;
+    }
+    let _bannerBusy=false, _lastDataSig='';
+    function initBanner(force){
+        if(_bannerBusy)return;
+        _bannerBusy=true;
+        loadAllMetrics().then(()=>{
+            const sig=JSON.stringify(metricsStore)+'|'+isMinimized;
+            const existe=document.getElementById('fclm-banner')||document.getElementById('fclm-pill');
+            if(force===true||!existe||sig!==_lastDataSig){ _lastDataSig=sig; createBanner(); }
+        }).finally(()=>{ _bannerBusy=false; });
+    }
 
     function waitForData(){
         let att=0;
@@ -966,6 +983,9 @@
             return nodos.some(n=>!isOwnNode(n)&&!(n.nodeType===1&&(n.tagName==='STYLE'||n.tagName==='SCRIPT')));
         });
         if(!externo)return;
+        const firma=pageSignature();
+        if(firma===window._fclmPageSig)return;
+        window._fclmPageSig=firma;
         clearTimeout(window._fclmT);
         window._fclmT=setTimeout(()=>{
             const t=document.body.textContent||'';
@@ -1275,7 +1295,39 @@
     }
 
     // ---------- panel flotante con animación ----------
-    let ptView = null, ptTimer = null, ptBusy = false;
+    let ptView = null, ptTimer = null, ptBusy = false, ptEditing = false;
+    function ptOpenEditor() {
+        const p = document.getElementById('ob-pt-panel'); if (!p) return;
+        const body = p.querySelector('#obpt-body');
+        ptEditing = true;
+        const eb = p.querySelector('#obpt-edit'); if (eb) eb.style.color = '#0a84ff';
+        body.style.opacity = '0';
+        setTimeout(function() {
+            body.innerHTML = '<div id="obpt-editor">' + ptSettingsHTML() +
+                '<div style="display:flex;gap:8px;margin-top:6px;">' +
+                '<button id="obpt-ed-save" style="flex:1;padding:8px;background:#0a84ff;border:none;border-radius:980px;color:#fff;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;">Guardar</button>' +
+                '<button id="obpt-ed-cancel" style="flex:1;padding:8px;background:rgba(255,255,255,0.08);border:none;border-radius:980px;color:#f5f5f7;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;">Cancelar</button></div></div>';
+            body.dataset.view = 'editor';
+            const ed = body.querySelector('#obpt-editor');
+            ptBindSettings(ed);
+            ['#obpt-ed-save', '#obpt-ed-cancel'].forEach(function(id) {
+                const b = ed.querySelector(id);
+                b.addEventListener('mouseenter', function() { b.style.background = '#409cff'; b.style.color = '#fff'; });
+                b.addEventListener('mouseleave', function() { b.style.background = id === '#obpt-ed-save' ? '#0a84ff' : 'rgba(255,255,255,0.08)'; b.style.color = id === '#obpt-ed-save' ? '#fff' : '#f5f5f7'; });
+            });
+            ed.querySelector('#obpt-ed-save').addEventListener('click', function() { ptSaveSettings(ed); ptCloseEditor(); });
+            ed.querySelector('#obpt-ed-cancel').addEventListener('click', ptCloseEditor);
+            body.style.opacity = '1';
+        }, 180);
+    }
+    function ptCloseEditor() {
+        ptEditing = false;
+        const p = document.getElementById('ob-pt-panel'); if (!p) return;
+        const eb = p.querySelector('#obpt-edit'); if (eb) eb.style.color = '#f5f5f7';
+        const body = p.querySelector('#obpt-body');
+        body.innerHTML = ''; body.dataset.view = '';
+        ptRefresh();
+    }
     function ptPanel() {
         let p = document.getElementById('ob-pt-panel');
         if (p) return p;
@@ -1295,6 +1347,7 @@
                 '<div id="obpt-sub" style="color:#8e8e93;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div></div>' +
               '</div>' +
               '<div style="display:flex;align-items:center;gap:6px;">' +
+                '<button id="obpt-edit" title="Editar plan y opciones" style="width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#f5f5f7;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s ease;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>' +
                 '<button id="obpt-refresh" title="Actualizar" style="width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#f5f5f7;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s ease,transform .45s cubic-bezier(.4,0,.2,1);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>' +
                 '<button id="obpt-close" title="Cerrar" style="width:26px;height:26px;border:none;border-radius:50%;background:rgba(255,255,255,0.08);color:#f5f5f7;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s ease;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" style="display:block;"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>' +
               '</div>' +
@@ -1302,8 +1355,9 @@
             '<div id="obpt-body" style="padding:10px 12px 12px;overflow:auto;transition:opacity .2s ease;"></div>';
         document.body.appendChild(p);
         const hov = function(b) { b.addEventListener('mouseenter', function() { b.style.background = '#0a84ff'; }); b.addEventListener('mouseleave', function() { b.style.background = 'rgba(255,255,255,0.08)'; }); };
-        const rb = p.querySelector('#obpt-refresh'), cb = p.querySelector('#obpt-close');
-        hov(rb); hov(cb);
+        const rb = p.querySelector('#obpt-refresh'), cb = p.querySelector('#obpt-close'), eb = p.querySelector('#obpt-edit');
+        hov(rb); hov(cb); hov(eb);
+        eb.addEventListener('click', function() { if (ptEditing) ptCloseEditor(); else ptOpenEditor(); });
         let giro = 0;
         rb.addEventListener('click', function() { giro += 360; rb.style.transform = 'rotate(' + giro + 'deg)'; ptRefresh(); });
         cb.addEventListener('click', ptClose);
@@ -1364,6 +1418,7 @@
     function ptOpen(view) {
         const p = ptPanel();
         const body = p.querySelector('#obpt-body');
+        ptEditing = false; const _eb = p.querySelector('#obpt-edit'); if (_eb) _eb.style.color = '#f5f5f7';
         const yaAbierto = p.style.display !== 'none' && ptView;
         ptView = view;
         p.querySelector('#obpt-icon').textContent = view === 'perf' ? '\u26A1' : '\uD83D\uDCC8';
@@ -1434,7 +1489,7 @@
     function ptLoadingHTML() { return '<div class="obpt-shimmer"></div><div class="obpt-shimmer" style="width:80%"></div><div class="obpt-shimmer" style="width:60%"></div>'; }
 
     async function ptRefresh() {
-        const p = document.getElementById('ob-pt-panel'); if (!p || !ptView || ptBusy) return;
+        const p = document.getElementById('ob-pt-panel'); if (!p || !ptView || ptBusy || ptEditing) return;
         const body = p.querySelector('#obpt-body'), sub = p.querySelector('#obpt-sub');
         ptBusy = true;
         if (!body.innerHTML || body.dataset.view !== ptView) body.innerHTML = ptLoadingHTML();
@@ -1444,7 +1499,7 @@
             const tkReal = ptDetectarTurno(), tk = tkReal || 'night';
             const hora = ptAhora().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
             const html = view === 'perf' ? await ptRenderPerf(tk) : await ptRenderAvance(tk, tkReal);
-            if (ptView !== view) return;
+            if (ptView !== view || ptEditing) return;
             body.innerHTML = html; body.dataset.view = view;
             const man = ptTurnoManual().activo ? ' \u00B7 Manual' : '';
             sub.textContent = (tkReal ? PT.turnos[tk].nombre : 'Fuera de turno \u00B7 corte Night Shift') + man + ' \u00B7 Actualizado ' + hora;
@@ -1483,7 +1538,7 @@
             h += '</tbody></table></div>';
         });
         h += '</div>';
-        if (sinPlan) h += '<div class="obpt-loading" style="padding:10px 0 0;">Captura el plan del turno en \u2699\uFE0F Configuraci\u00F3n \u2192 Avance al Plan.</div>';
+        if (sinPlan) h += '<div class="obpt-loading" style="padding:10px 0 0;">Captura el plan con el l\u00E1piz \u270E de arriba o en \u2699\uFE0F Configuraci\u00F3n.</div>';
         return h;
     }
 
@@ -1581,7 +1636,7 @@
             semaforoAmarillo: parseInt(ov.querySelector('#obpt-amarillo').value, 10) || 85
         });
         ptCargarConfig();
-        if (ptView) { ptStartTimer(); ptRefresh(); }
+        if (ptView) { ptStartTimer(); if (!ptEditing) ptRefresh(); }
     }
 
 
@@ -1607,7 +1662,7 @@
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
             overlay.querySelector('#fclm-plan-save').addEventListener('click', () => {
                 const val = overlay.querySelector('#fclm-single-target').value;
-                if (val && !isNaN(parseFloat(val))) { localStorage.setItem(cpc.key, parseFloat(val)); overlay.remove(); initBanner(); }
+                if (val && !isNaN(parseFloat(val))) { localStorage.setItem(cpc.key, parseFloat(val)); overlay.remove(); initBanner(true); }
             });
             return;
         }
@@ -1681,7 +1736,7 @@
             });
             localStorage.setItem(cpc.key, JSON.stringify({ mode, plans }));
             overlay.remove();
-            initBanner();
+            initBanner(true);
         });
     }
 
@@ -1810,7 +1865,7 @@
 
             ptSaveSettings(overlay);
             overlay.remove();
-            initBanner();
+            initBanner(true);
         });
 
         // Reset
@@ -1818,7 +1873,7 @@
             if (confirm('\u00BFResetear todos los planes a valores autom\u00E1ticos?')) {
                 ['fclm_jph_tlc1_rc_sort','fclm_jph_tlc1_transfer_out','fclm_jph_tlc1_to_rwc','fclm_jph_qyy7_to_pick','fclm_jph_qyy7_transfer_out'].forEach(k => localStorage.removeItem(k));
                 overlay.remove();
-                initBanner();
+                initBanner(true);
             }
         });
     }
