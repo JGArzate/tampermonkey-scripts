@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.2.1
-// @description  v3.2.1: Auto-update revisa GitHub cada 5 min, evita caché del CDN y usa su propia clave de aviso
+// @version      3.2.2
+// @description  v3.2.2: Botón actualizar del panel siempre consulta datos frescos y ya no mezcla Avance al Plan con Performance
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.2.1';
+    const SCRIPT_VERSION = '3.2.2';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1153,7 +1153,7 @@
 
     // ---------- extracción ----------
     function ptFetch(url) {
-        return fetch(url, { credentials: 'include' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+        return fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now(), { credentials: 'include', cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
     }
     function ptParsePPR(html) {
         const doc = new DOMParser().parseFromString(html, 'text/html'), res = {};
@@ -1426,7 +1426,7 @@
         ptPlace(p);
         if (yaAbierto) {
             body.style.opacity = '0';
-            setTimeout(function() { ptRefresh(); body.style.opacity = '1'; }, 180);
+            setTimeout(function() { body.innerHTML = ''; body.dataset.view = ''; body.style.opacity = '1'; ptRefresh(); }, 180);
         } else {
             p.style.transition = 'none';
             p.style.display = 'block';
@@ -1488,24 +1488,40 @@
     function ptFmtD(d) { return (d === null || d === undefined || isNaN(d)) ? '\u2014' : (d >= 0 ? '+' : '') + Math.round(d).toLocaleString('en-US'); }
     function ptLoadingHTML() { return '<div class="obpt-shimmer"></div><div class="obpt-shimmer" style="width:80%"></div><div class="obpt-shimmer" style="width:60%"></div>'; }
 
+    // Cada actualización lleva un número; solo la más reciente pinta resultados (evita mezclar pestañas)
+    let ptReqId = 0;
     async function ptRefresh() {
-        const p = document.getElementById('ob-pt-panel'); if (!p || !ptView || ptBusy || ptEditing) return;
+        const p = document.getElementById('ob-pt-panel'); if (!p || !ptView || ptEditing) return;
         const body = p.querySelector('#obpt-body'), sub = p.querySelector('#obpt-sub');
-        ptBusy = true;
-        if (!body.innerHTML || body.dataset.view !== ptView) body.innerHTML = ptLoadingHTML();
+        const rb = p.querySelector('#obpt-refresh');
+        const myId = ++ptReqId;
         const view = ptView;
+        ptBusy = true;
+        if (body.dataset.view !== view || !body.innerHTML) body.innerHTML = ptLoadingHTML();
+        else body.style.opacity = '0.45';
+        sub.textContent = 'Actualizando\u2026';
+        if (rb) { rb.disabled = true; rb.style.opacity = '0.6'; }
         try {
             ptCargarConfig();
             const tkReal = ptDetectarTurno(), tk = tkReal || 'night';
-            const hora = ptAhora().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
             const html = view === 'perf' ? await ptRenderPerf(tk) : await ptRenderAvance(tk, tkReal);
-            if (ptView !== view || ptEditing) return;
+            if (myId !== ptReqId || ptView !== view || ptEditing) return;
+            const hora = ptAhora().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             body.innerHTML = html; body.dataset.view = view;
             const man = ptTurnoManual().activo ? ' \u00B7 Manual' : '';
             sub.textContent = (tkReal ? PT.turnos[tk].nombre : 'Fuera de turno \u00B7 corte Night Shift') + man + ' \u00B7 Actualizado ' + hora;
         } catch (e) {
+            if (myId !== ptReqId) return;
             body.innerHTML = '<div class="obpt-loading">No se pudieron obtener los datos (' + (e && e.message ? e.message : 'error') + ').</div>';
-        } finally { ptBusy = false; }
+            body.dataset.view = '';
+            sub.textContent = 'Error al actualizar';
+        } finally {
+            if (myId === ptReqId) {
+                ptBusy = false;
+                body.style.opacity = '1';
+                if (rb) { rb.disabled = false; rb.style.opacity = '1'; }
+            }
+        }
     }
 
     async function ptRenderAvance(tk, tkReal) {
