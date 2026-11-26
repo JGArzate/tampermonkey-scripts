@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.5.5
-// @description  v3.5.5: Liga de TO Problem Solve (TLC1 y QYY7) con el formato de FCLM startDateIntraday y processId 1003018
+// @version      3.6
+// @description  v3.6: Performance rediseñado: bloques grandes INBOUND y OUTBOUND con separación visual, resumen por color y barras de % plan
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.5.5';
+    const SCRIPT_VERSION = '3.6';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -1305,13 +1305,19 @@
     const PT_PERF = {
         thresholds: { red: 90, yellow: 95 },
         nombres: { 'Manual Sort -Total': 'RC Sort - Total', 'DA Bldg to Bldg Transfer TOTAL': 'DA Bldg to Bldg' },
-        secciones: [
-            { titulo: 'Inbound \u00B7 TLC1', wh: 'TLC1', procesos: ['Each Receive - Total', 'Receive - Total', 'Receive Support', 'IB Problem Solve', 'IB Total'] },
-            { titulo: 'Inbound \u00B7 QYY7', wh: 'QYY7', procesos: ['Case Transfer In', 'Transfer In - Total', 'RSR - Total', 'IB Total'] },
-            { titulo: 'Outbound \u00B7 TLC1', wh: 'TLC1', procesos: ['Manual Sort -Total', 'Transfer Out - Total', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] },
-            { titulo: 'Outbound \u00B7 QYY7', wh: 'QYY7', procesos: ['Transfer Out Pick - Total', 'TO Palletize', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] }
+        // Estructura: dos bloques grandes (Inbound / Outbound); cada uno con un nodo por columna
+        bloques: [
+            { id: 'ib', titulo: 'INBOUND', icono: '\uD83D\uDCE5', color: '#0a84ff', subt: 'Recibo y transferencias de entrada', nodos: [
+                { wh: 'TLC1', procesos: ['Each Receive - Total', 'Receive - Total', 'Receive Support', 'IB Problem Solve', 'IB Total'] },
+                { wh: 'QYY7', procesos: ['Case Transfer In', 'Transfer In - Total', 'RSR - Total', 'IB Total'] }
+            ]},
+            { id: 'ob', titulo: 'OUTBOUND', icono: '\uD83D\uDCE4', color: '#ff9f0a', subt: 'Sort, transferencias de salida y dock', nodos: [
+                { wh: 'TLC1', procesos: ['Manual Sort -Total', 'Transfer Out - Total', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] },
+                { wh: 'QYY7', procesos: ['Transfer Out Pick - Total', 'TO Palletize', 'Transfer Out Dock', 'DA Bldg to Bldg Transfer TOTAL'] }
+            ]}
         ]
     };
+    const PT_PERF_SECCIONES = PT_PERF.bloques.reduce(function(acc, b) { b.nodos.forEach(function(n) { acc.push({ wh: n.wh, procesos: n.procesos }); }); return acc; }, []);
     function ptPerfNum(t) { if (!t) return null; const n = parseFloat(t.replace(/[,%$\s]/g, '')); return isNaN(n) ? null : n; }
     function ptPerfEntry(name, v) {
         if (v.length >= 7) return { name: name, actual: v[2], plan: v[3], variance: v[5], pct: v[6] };
@@ -1351,10 +1357,24 @@
             '.obpt-r{background:rgba(255,69,58,0.16);color:#ff453a;} .obpt-n{background:rgba(255,255,255,0.06);color:#8e8e93;}' +
             '.obpt-tg{color:#30d158;} .obpt-tr{color:#ff453a;} .obpt-tn{color:#8e8e93;}' +
             '.obpt-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;}' +
-            '.obpt-node{display:flex;align-items:center;gap:6px;color:#f5f5f7;font-weight:600;font-size:11.5px;margin:2px 0 4px;}' +
+            '.obpt-node{display:flex;align-items:center;gap:6px;color:#f5f5f7;font-weight:700;font-size:12.5px;margin:2px 0 5px;}' +
             '.obpt-node i{display:inline-block;width:3px;height:12px;border-radius:2px;}' +
             '.obpt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}' +
             '@media (max-width:820px){.obpt-grid{grid-template-columns:1fr;}}' +
+            '.obpt-block{position:relative;border-radius:16px;padding:10px 10px 10px;background:linear-gradient(180deg,color-mix(in srgb,var(--bc) 10%,transparent),rgba(255,255,255,0.02) 60%);border:1px solid color-mix(in srgb,var(--bc) 35%,rgba(255,255,255,0.08));box-shadow:inset 3px 0 0 var(--bc);}' +
+            '.obpt-bhead{display:flex;align-items:center;gap:12px;padding:2px 4px 10px;}' +
+            '.obpt-bicon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;background:color-mix(in srgb,var(--bc) 22%,transparent);box-shadow:0 6px 18px color-mix(in srgb,var(--bc) 30%,transparent);}' +
+            '.obpt-btitle{flex:1;min-width:0;}' +
+            '.obpt-bname{font-size:20px;font-weight:800;letter-spacing:1.4px;color:#f5f5f7;line-height:1.1;}' +
+            '.obpt-bsub{font-size:11px;color:#8e8e93;margin-top:2px;}' +
+            '.obpt-bsum{display:flex;gap:5px;}' +
+            '.obpt-bsum .obpt-pill{min-width:26px;padding:3px 8px;text-align:center;}' +
+            '.obpt-sep{display:flex;align-items:center;gap:12px;margin:14px 6px;}' +
+            '.obpt-sep span{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent);}' +
+            '.obpt-sep i{font-style:normal;color:#636366;font-size:10px;}' +
+            '.obpt-bar{height:3px;border-radius:3px;background:rgba(255,255,255,0.07);margin:4px auto 0;width:58px;overflow:hidden;}' +
+            '.obpt-bar b{display:block;height:100%;border-radius:3px;transition:width .5s ease;}' +
+            '.obpt-fg{background:#30d158;} .obpt-fy{background:#ff9f0a;} .obpt-fr{background:#ff453a;} .obpt-fn{background:#636366;}' +
             '.obpt-loading{color:#8e8e93;font-size:12px;text-align:center;padding:18px 0;}' +
             '.obpt-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:980px;background:rgba(255,255,255,0.06);color:#aeaeb2;font-size:10.5px;}' +
             '.obpt-shimmer{background:linear-gradient(90deg,rgba(255,255,255,0.04),rgba(255,255,255,0.10),rgba(255,255,255,0.04));background-size:200% 100%;animation:obptSh 1.2s ease-in-out infinite;border-radius:8px;height:14px;margin:6px 0;}' +
@@ -1627,26 +1647,44 @@
     }
 
     async function ptRenderPerf(tk) {
-        const nombres = {}; PT_PERF.secciones.forEach(function(s) { (nombres[s.wh] = nombres[s.wh] || []).push.apply(nombres[s.wh], s.procesos); });
+        const nombres = {}; PT_PERF_SECCIONES.forEach(function(x) { (nombres[x.wh] = nombres[x.wh] || []).push.apply(nombres[x.wh], x.procesos); });
         const data = {};
         for (const wh of ['TLC1', 'QYY7']) { try { data[wh] = ptPerfExtract(await ptFetch(ptURL(wh, tk)), nombres[wh]); } catch (e) { data[wh] = {}; } }
         const cls = function(p) { if (p === null || p === undefined || isNaN(p) || p === 0) return 'n'; if (p < PT_PERF.thresholds.red) return 'r'; if (p < PT_PERF.thresholds.yellow) return 'y'; return 'g'; };
-        let h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"><span class="obpt-chip"><span style="color:#30d158;">\u25CF</span> \u2265 ' + PT_PERF.thresholds.yellow +
-                '% <span style="color:#ff9f0a;margin-left:4px;">\u25CF</span> ' + PT_PERF.thresholds.red + '\u2013' + PT_PERF.thresholds.yellow + '% <span style="color:#ff453a;margin-left:4px;">\u25CF</span> &lt; ' + PT_PERF.thresholds.red + '%</span></div><div class="obpt-grid">';
-        PT_PERF.secciones.forEach(function(s) {
-            const color = s.wh === 'TLC1' ? '#0073bb' : '#7b2d8b';
-            h += '<div class="obpt-card"><div class="obpt-node"><i style="background:' + color + ';"></i>' + s.titulo + '</div>' +
-                 '<table><thead><tr><th>Proceso</th><th>Rate</th><th>Plan</th><th>Var (h)</th><th>% Plan</th></tr></thead><tbody>';
-            s.procesos.forEach(function(n) {
-                const e = data[s.wh][n], dn = PT_PERF.nombres[n] || n;
-                if (!e) { h += '<tr style="opacity:.45;"><td>' + dn + '</td><td>\u2014</td><td>\u2014</td><td>\u2014</td><td>\u2014</td></tr>'; return; }
-                const v = e.variance || 0;
-                h += '<tr><td>' + dn + '</td><td>' + ptFmt(e.actual) + '</td><td>' + ptFmt(e.plan) + '</td><td class="' + (v >= 0 ? 'obpt-tg' : 'obpt-tr') + '">' + (v >= 0 ? '+' : '') + v.toFixed(2) + '</td>' +
-                     '<td><span class="obpt-pill obpt-' + cls(e.pct) + '">' + (e.pct || 0).toFixed(1) + '%</span></td></tr>';
+        const T = PT_PERF.thresholds;
+        let h = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"><span class="obpt-chip"><span style="color:#30d158;">\u25CF</span> \u2265 ' + T.yellow +
+                '% <span style="color:#ff9f0a;margin-left:4px;">\u25CF</span> ' + T.red + '\u2013' + T.yellow + '% <span style="color:#ff453a;margin-left:4px;">\u25CF</span> &lt; ' + T.red + '%</span></div>';
+        PT_PERF.bloques.forEach(function(bq, bi) {
+            // Resumen del bloque: cuántos procesos en cada color
+            const cont = { g: 0, y: 0, r: 0 };
+            bq.nodos.forEach(function(n) { n.procesos.forEach(function(pn) { const e = data[n.wh][pn]; if (e) { const c = cls(e.pct); if (cont[c] !== undefined) cont[c]++; } }); });
+            if (bi > 0) h += '<div class="obpt-sep"><span></span><i>\u25C6</i><span></span></div>';
+            h += '<section class="obpt-block" style="--bc:' + bq.color + ';">' +
+                 '<header class="obpt-bhead">' +
+                   '<div class="obpt-bicon">' + bq.icono + '</div>' +
+                   '<div class="obpt-btitle"><div class="obpt-bname">' + bq.titulo + '</div><div class="obpt-bsub">' + bq.subt + '</div></div>' +
+                   '<div class="obpt-bsum">' +
+                     '<span class="obpt-pill obpt-g" title="Sobre plan">' + cont.g + '</span>' +
+                     '<span class="obpt-pill obpt-y" title="Cerca del plan">' + cont.y + '</span>' +
+                     '<span class="obpt-pill obpt-r" title="Bajo plan">' + cont.r + '</span>' +
+                   '</div>' +
+                 '</header><div class="obpt-grid">';
+            bq.nodos.forEach(function(n) {
+                const color = n.wh === 'TLC1' ? '#0073bb' : '#7b2d8b';
+                h += '<div class="obpt-card"><div class="obpt-node"><i style="background:' + color + ';"></i>' + n.wh + '</div>' +
+                     '<table><thead><tr><th>Proceso</th><th>Rate</th><th>Plan</th><th>Var (h)</th><th>% Plan</th></tr></thead><tbody>';
+                n.procesos.forEach(function(pn) {
+                    const e = data[n.wh][pn], dn = PT_PERF.nombres[pn] || pn;
+                    if (!e) { h += '<tr style="opacity:.45;"><td>' + dn + '</td><td>\u2014</td><td>\u2014</td><td>\u2014</td><td>\u2014</td></tr>'; return; }
+                    const v = e.variance || 0, c = cls(e.pct), w = Math.max(0, Math.min(100, ((e.pct || 0) / 120) * 100));
+                    h += '<tr><td>' + dn + '</td><td>' + ptFmt(e.actual) + '</td><td>' + ptFmt(e.plan) + '</td><td class="' + (v >= 0 ? 'obpt-tg' : 'obpt-tr') + '">' + (v >= 0 ? '+' : '') + v.toFixed(2) + '</td>' +
+                         '<td><span class="obpt-pill obpt-' + c + '">' + (e.pct || 0).toFixed(1) + '%</span><div class="obpt-bar"><b class="obpt-f' + c + '" style="width:' + w.toFixed(0) + '%;"></b></div></td></tr>';
+                });
+                h += '</tbody></table></div>';
             });
-            h += '</tbody></table></div>';
+            h += '</div></section>';
         });
-        return h + '</div>';
+        return h;
     }
 
     // ---------- integración con ⚙️ Configuración del OB ----------
