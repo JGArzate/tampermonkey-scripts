@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.3
-// @description  v3.3: Popup de nueva versión más grande con animación y hover estilo Apple
+// @version      3.5.1
+// @description  v3.5.1: Productividad QYY7 (Outbound/Throughput) leída del RC Summary con rate objetivo editable en ⚙️
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.3';
+    const SCRIPT_VERSION = '3.5.1';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -92,6 +92,10 @@
         jphConfig: {
             'Transfer Out Pick - Total': { processId: '01003065', defaultPlan: 60, key: 'fclm_jph_qyy7_to_pick' },
             'TO Palletize': { processId: '01785143645486', defaultPlan: 60, key: 'fclm_jph_qyy7_transfer_out' }
+        },
+        rcSummaryTargets: {
+            'DA': { key: 'fclm_target_qyy7_da', defaultPlan: 141, label: 'Outbound (DA)' },
+            'THROUGHPUT': { key: 'fclm_target_qyy7_throughput', defaultPlan: 131, label: 'Throughput' }
         },
         deltaHrsMap: { 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
@@ -222,6 +226,36 @@
         return null;
     }
 
+    // Fila del RC Summary de QYY7: [Unit, Vol, 0, 0, Horas, Rate, Rate]  (no trae plan ni %)
+    // El plan se toma de un objetivo configurable (⚙️) o, si la fila sí trae plan, de la propia fila.
+    function extractRCSummaryRow(cells, processName, targetPlan) {
+        const ct = cells.map(c => (c.textContent || '').trim());
+        const unitIdx = ct.findIndex(t => ['EACH','Case','Pallet','Package'].includes(t));
+        if (unitIdx < 0) return null;
+        const nums = [];
+        ct.forEach((t, i) => {
+            if (i <= unitIdx) return;
+            if (t.includes('%') || ['---','-',''].includes(t)) return;
+            const n = parseFloat(t.replace(/,/g, '')); if (!isNaN(n)) nums.push(n);
+        });
+        if (nums.length < 4) return null;
+        const volume = nums[0];
+        const hours = nums[nums.length - 3];
+        const actualRate = nums[nums.length - 2];
+        const planRate = (targetPlan && targetPlan > 0) ? targetPlan : null;
+        const percentToPlan = planRate ? (actualRate / planRate) * 100 : null;
+        // Δ horas: horas usadas menos las que hubiera necesitado al rate objetivo (+ = se ahorraron horas, va mejor que el plan)
+        const deltaToPlanHrs = planRate ? hours - (volume / planRate) : null;
+        return { name: processName, volume, actualRate, planRate, percentToPlan, deltaToPlanHrs, hours };
+    }
+
+    function getRCTarget(config, procName) {
+        const t = config.rcSummaryTargets && config.rcSummaryTargets[procName]; if (!t) return null;
+        const saved = localStorage.getItem(t.key);
+        const v = saved != null ? parseFloat(saved) : t.defaultPlan;
+        return isNaN(v) ? null : v;
+    }
+
     function extractMetricsFromDocument(doc, config) {
         const allProc=[...config.sections.flatMap(s=>s.processes), ...(config.hiddenProcesses||[])];
         const main=[], prod=[];
@@ -247,7 +281,7 @@
                 const ca=Array.from(cells), ct2=ca.map(c=>(c.textContent||'').trim());
                 config.productivity.processes.forEach(proc=>{
                     if(ct2.some(t=>t.toLowerCase()===proc.name.toLowerCase())){
-                        const d=extractRowData(ca,proc.name);
+                        const d=(config.rcSummaryTargets?extractRCSummaryRow(ca,proc.name,getRCTarget(config,proc.name)):null)||extractRowData(ca,proc.name);
                         if(d){const key='RC_'+proc.name; if(!prod.find(m=>m.key===key)){d.key=key;d.displayName=proc.displayName;prod.push(d);}}
                     }
                 });
@@ -826,8 +860,8 @@
             prodRow.style.cssText = 'display:flex;gap:6px;flex:1;';
             wc.productivity.processes.forEach(proc => {
                 const m = pm.find(x => x.key === 'RC_' + proc.name);
-                let dHrs = null;
-                if (wc.deltaHrsMap && wc.deltaHrsMap[proc.name]) {
+                let dHrs = (m && m.deltaToPlanHrs != null && wc.rcSummaryTargets) ? m.deltaToPlanHrs : null;
+                if (dHrs == null && wc.deltaHrsMap && wc.deltaHrsMap[proc.name]) {
                     const srcProc = mm.find(x => x.name === wc.deltaHrsMap[proc.name]);
                     if (srcProc) dHrs = srcProc.deltaToPlanHrs;
                 }
@@ -895,10 +929,20 @@
 
         // Botones Avance al Plan / Performance (integrados)
         const footerWrap = document.createElement('div');
-        footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;';
+        footerWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;gap:8px;padding-top:2px;width:100%;';
         footerWrap.appendChild(ptButton('avance', '\uD83D\uDCC8', 'Avance al Plan'));
         footerWrap.appendChild(ptButton('perf', '\u26A1', 'Performance'));
         footerWrap.appendChild(footerRow);
+
+        // Botón grande TLC1 Flow (esquina inferior derecha del footer)
+        const flowBtn = document.createElement('button');
+        flowBtn.id = 'fclm-flow-btn';
+        flowBtn.innerHTML = '<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,0.14);font-size:13px;">\uD83D\uDD04</span><span>TLC1 Flow</span>';
+        flowBtn.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0;background:rgba(255,255,255,0.07);border:1px solid rgba(10,132,255,0.55);color:#f5f5f7;border-radius:980px;padding:8px 20px 8px 8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;white-space:nowrap;transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease;';
+        flowBtn.addEventListener('mouseenter', () => { flowBtn.style.background = '#0a84ff'; flowBtn.style.color = '#ffffff'; flowBtn.style.transform = 'translateY(-1px)'; flowBtn.style.boxShadow = '0 8px 20px rgba(10,132,255,0.40)'; });
+        flowBtn.addEventListener('mouseleave', () => { flowBtn.style.background = 'rgba(255,255,255,0.07)'; flowBtn.style.color = '#f5f5f7'; flowBtn.style.transform = 'none'; flowBtn.style.boxShadow = 'none'; });
+        flowBtn.addEventListener('click', () => { window.open('https://tlc1-flow.beta.harmony.a2z.com/?sitio=TLC1', '_blank'); });
+        footerWrap.appendChild(flowBtn);
 
         contentWrap.appendChild(footerWrap);
         banner.appendChild(contentWrap);
@@ -1778,6 +1822,10 @@
                 { label: 'TO Palletize JPH', key: 'fclm_jph_tlc1_transfer_out', defaultVal: 55, type: 'single' },
                 { label: 'TO RWC JPH', key: 'fclm_jph_tlc1_to_rwc', defaultVal: 60, type: 'single' }
             ]},
+            { wh: 'QYY7', title: 'Objetivo de rate · Productividad (QYY7)', items: [
+                { label: 'Outbound (DA) – rate objetivo', key: 'fclm_target_qyy7_da', defaultVal: 141, type: 'single' },
+                { label: 'Throughput – rate objetivo', key: 'fclm_target_qyy7_throughput', defaultVal: 131, type: 'single' }
+            ]},
             { wh: 'QYY7', title: 'JPH (QYY7)', items: [
                 { label: 'Transfer Out Pick', key: 'fclm_jph_qyy7_to_pick', defaultVal: 60, type: 'single' },
                 { label: 'Transfer Out (TO Palletize)', key: 'fclm_jph_qyy7_transfer_out', defaultVal: 60, type: 'single' }
@@ -1889,7 +1937,7 @@
         // Reset
         overlay.querySelector('#fclm-settings-reset').addEventListener('click', () => {
             if (confirm('\u00BFResetear todos los planes a valores autom\u00E1ticos?')) {
-                ['fclm_jph_tlc1_rc_sort','fclm_jph_tlc1_transfer_out','fclm_jph_tlc1_to_rwc','fclm_jph_qyy7_to_pick','fclm_jph_qyy7_transfer_out'].forEach(k => localStorage.removeItem(k));
+                ['fclm_jph_tlc1_rc_sort','fclm_jph_tlc1_transfer_out','fclm_jph_tlc1_to_rwc','fclm_jph_qyy7_to_pick','fclm_jph_qyy7_transfer_out','fclm_target_qyy7_da','fclm_target_qyy7_throughput'].forEach(k => localStorage.removeItem(k));
                 overlay.remove();
                 initBanner(true);
             }
