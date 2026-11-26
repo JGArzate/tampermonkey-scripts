@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.5.1
-// @description  v3.5.1: Productividad QYY7 (Outbound/Throughput) leída del RC Summary con rate objetivo editable en ⚙️
+// @version      3.5.3
+// @description  v3.5.3: Productividad QYY7: busca DA y THROUGHPUT en toda la tabla y lee el rate correctamente
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.5.1';
+    const SCRIPT_VERSION = '3.5.3';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -226,26 +226,31 @@
         return null;
     }
 
-    // Fila del RC Summary de QYY7: [Unit, Vol, 0, 0, Horas, Rate, Rate]  (no trae plan ni %)
-    // El plan se toma de un objetivo configurable (⚙️) o, si la fila sí trae plan, de la propia fila.
+    // Fila del RC Summary de QYY7: [..., Unit, Vol, 0, 0, Horas, Rate, Rate]  (no trae plan ni %)
+    // El rate se toma como el último número NO CERO de la fila; las horas, el número anterior a ese rate.
     function extractRCSummaryRow(cells, processName, targetPlan) {
         const ct = cells.map(c => (c.textContent || '').trim());
-        const unitIdx = ct.findIndex(t => ['EACH','Case','Pallet','Package'].includes(t));
-        if (unitIdx < 0) return null;
+        let unitIdx = ct.findIndex(t => ['EACH','Case','Pallet','Package'].includes(t));
         const nums = [];
         ct.forEach((t, i) => {
-            if (i <= unitIdx) return;
+            if (unitIdx >= 0 && i <= unitIdx) return;
+            if (t.toLowerCase() === processName.toLowerCase()) return;
             if (t.includes('%') || ['---','-',''].includes(t)) return;
             const n = parseFloat(t.replace(/,/g, '')); if (!isNaN(n)) nums.push(n);
         });
-        if (nums.length < 4) return null;
+        if (nums.length < 3) { console.warn('[OB FCLM] RC Summary fila corta', processName, ct); return null; }
         const volume = nums[0];
-        const hours = nums[nums.length - 3];
-        const actualRate = nums[nums.length - 2];
+        // último valor distinto de cero = rate; el valor anterior distinto de cero = horas
+        let ri = -1;
+        for (let i = nums.length - 1; i >= 1; i--) { if (nums[i] > 0) { ri = i; break; } }
+        if (ri < 0) { console.warn('[OB FCLM] RC Summary sin rate', processName, ct); return null; }
+        const actualRate = nums[ri];
+        let hours = null;
+        for (let i = ri - 1; i >= 1; i--) { if (nums[i] > 0 && Math.abs(nums[i] - actualRate) > 1e-9) { hours = nums[i]; break; } }
         const planRate = (targetPlan && targetPlan > 0) ? targetPlan : null;
         const percentToPlan = planRate ? (actualRate / planRate) * 100 : null;
-        // Δ horas: horas usadas menos las que hubiera necesitado al rate objetivo (+ = se ahorraron horas, va mejor que el plan)
-        const deltaToPlanHrs = planRate ? hours - (volume / planRate) : null;
+        const deltaToPlanHrs = (planRate && hours != null) ? (volume / planRate) - hours : null;
+        console.log('[OB FCLM] RC Summary', processName, { volume, hours, actualRate, planRate, percentToPlan, deltaToPlanHrs, celdas: ct });
         return { name: processName, volume, actualRate, planRate, percentToPlan, deltaToPlanHrs, hours };
     }
 
@@ -277,10 +282,11 @@
                 if(t.match(/^RC\s*Summary\s*$/i))inRC=true;
                 if(inRC&&cs&&parseInt(cs)>2){if(t.match(/^FC\s*Summary\s*$/i)||t.match(/^Outbound\s*$/i)||t.match(/^ICQA\s*$/i)||t.match(/^Other\s*$/i))inRC=false;}
             }
-            if(inRC&&cells.length>3){
+            // En QYY7 las filas DA / THROUGHPUT se buscan en toda la página (no solo dentro del bloque RC Summary)
+            if((inRC||config.rcSummaryTargets)&&cells.length>3){
                 const ca=Array.from(cells), ct2=ca.map(c=>(c.textContent||'').trim());
                 config.productivity.processes.forEach(proc=>{
-                    if(ct2.some(t=>t.toLowerCase()===proc.name.toLowerCase())){
+                    if(ct2.some(t=>t.toLowerCase()===proc.name.toLowerCase())&&(!config.rcSummaryTargets||ct2.some(t=>['EACH','Case','Pallet','Package'].includes(t)))){
                         const d=(config.rcSummaryTargets?extractRCSummaryRow(ca,proc.name,getRCTarget(config,proc.name)):null)||extractRowData(ca,proc.name);
                         if(d){const key='RC_'+proc.name; if(!prod.find(m=>m.key===key)){d.key=key;d.displayName=proc.displayName;prod.push(d);}}
                     }
