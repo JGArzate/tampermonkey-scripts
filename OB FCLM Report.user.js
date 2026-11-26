@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.5.3
-// @description  v3.5.3: Productividad QYY7: busca DA y THROUGHPUT en toda la tabla y lee el rate correctamente
+// @version      3.5.4
+// @description  v3.5.4: Liga de TO Problem Solve (TLC1 y QYY7) actualizada al processId 01003018
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.5.3';
+    const SCRIPT_VERSION = '3.5.4';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -52,7 +52,7 @@
             'Transfer Out Dock': '01003022',
             'Transfer Out Support': '01785144518570',
             'TO Lead/PA': '01003023',
-            'TO Problem Solve': '01002985'
+            'TO Problem Solve': '01003018'
         },
         processDropdowns: {},
         customPlanConfig: {},
@@ -103,7 +103,7 @@
             'TO Palletize': '01785143645486',
             'Transfer Out Support': '01785144518570',
             'TO Lead/PA': '01003023',
-            'TO Problem Solve': '01002985',
+            'TO Problem Solve': '01003018',
             'Transfer Out Dock': '01003022'
         },
         processDropdowns: {},
