@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.5.4
-// @description  v3.5.4: Liga de TO Problem Solve (TLC1 y QYY7) actualizada al processId 01003018
+// @version      3.5.5
+// @description  v3.5.5: Liga de TO Problem Solve (TLC1 y QYY7) con el formato de FCLM startDateIntraday y processId 1003018
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.5.4';
+    const SCRIPT_VERSION = '3.5.5';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -199,6 +199,20 @@
         }
         if (!s||!e) return null;
         return `https://fclm-portal.amazon.com/reports/functionRollup?warehouseId=${warehouseId}&spanType=Intraday&startDate=${s}&endDate=${e}&reportFormat=HTML&processId=${processId}`;
+    }
+
+    // Liga de Function Rollup en el formato que usa FCLM al abrir un proceso desde el menú (startDateIntraday/Hour/Minute)
+    function buildFunctionRollupIntradayURL(processId, warehouseId) {
+        const dp = getDateParams();
+        const pid = String(processId).replace(/^0+/, '');
+        const q = [
+            'reportFormat=HTML', 'warehouseId=' + warehouseId, 'processId=' + pid, 'maxIntradayDays=1', 'spanType=Intraday',
+            'startDateIntraday=' + encodeURIComponent(dp.startDateIntraday), 'startHourIntraday=' + dp.startHourIntraday, 'startMinuteIntraday=' + dp.startMinuteIntraday,
+            'endDateIntraday=' + encodeURIComponent(dp.endDateIntraday), 'endHourIntraday=' + dp.endHourIntraday, 'endMinuteIntraday=' + dp.endMinuteIntraday,
+            'startHourIntraday1=0', 'startMinuteIntraday1=0', 'startHourIntraday2=0', 'startMinuteIntraday2=0',
+            'startHourIntraday3=0', 'startMinuteIntraday3=0', 'startHourIntraday4=0', 'startMinuteIntraday4=0'
+        ];
+        return 'https://fclm-portal.amazon.com/reports/functionRollup?' + q.join('&');
     }
 
     function buildRemotePPRUrl(wh) {
@@ -468,10 +482,12 @@
         return row.childNodes.length ? row : null;
     }
 
+    const INTRADAY_LINK_PROCESSES = ['TO Problem Solve'];
+
     function makeProcessCard(m, pn, isCase, whConfig) {
         const dn = DISPLAY_NAMES[pn] || pn;
         const processId = whConfig && whConfig.processLinks ? whConfig.processLinks[pn] : null;
-        const linkURL = processId ? buildFunctionRollupURL(processId, whConfig.id) : null;
+        const linkURL = processId ? (INTRADAY_LINK_PROCESSES.includes(pn) ? buildFunctionRollupIntradayURL(processId, whConfig.id) : buildFunctionRollupURL(processId, whConfig.id)) : null;
         const dropdown = whConfig && whConfig.processDropdowns ? whConfig.processDropdowns[pn] : null;
         const subMenu = whConfig && whConfig.processSubMenu ? whConfig.processSubMenu[pn] : null;
         let linkBtn = '';
