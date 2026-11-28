@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.8
-// @description  v3.8: Auto-refresh global cada 5 min (encender/apagar y minutos editables en ⚙️) con cuenta regresiva en la barra de título
+// @version      3.9
+// @description  v3.9: Se quita Detalle RC Sort, Δ de Avance al Plan en verde/rojo con fondo y nueva sección AVERY (Dashboard y Routing) en QYY7
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.8';
+    const SCRIPT_VERSION = '3.9';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -62,9 +62,6 @@
         customPlanConfig: {},
         processSubMenu: {},
         processLinkMenu: {
-            'Manual Sort -Total': [
-                { name: '\uD83D\uDD0E Detalle RC Sort', processId: '01785143618796' }
-            ],
             'Transfer Out Dock': [
                 { name: '\uD83D\uDE9A Cargas', url: 'https://prod-na.us-east-1.idx-website.aft.amazon.dev/en_US/TLC1/day-schedule?view=grid' },
                 { name: '\uD83C\uDFED Yard', url: 'https://trans-logistics.amazon.com/yms/shipclerk/#/yard?availability=false' },
@@ -922,6 +919,33 @@
                 prodPanel.appendChild(pc);
             }
 
+            if (wc.id === 'QYY7') {
+                const av = document.createElement('div');
+                av.id = 'fclm-avery-info';
+                av.className = 'fclm-card';
+                av.style.cssText = 'align-self:center;width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;';
+                const ttl = document.createElement('div');
+                ttl.style.cssText = 'color:#aeaeb2;font-weight:500;font-size:12px;';
+                ttl.textContent = 'AVERY';
+                av.appendChild(ttl);
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:6px;width:100%;';
+                [
+                    { ico: '\uD83D\uDCCA', txt: 'Dashboard', url: 'https://routing-dashboard-tlc1.beta.harmony.a2z.com/' },
+                    { ico: '\uD83D\uDD00', txt: 'Routing', url: 'https://routing-tool-iad.aka.amazon.com/tote-route?jobName=CheckDestination' }
+                ].forEach(function(b) {
+                    const a = document.createElement('a');
+                    a.href = b.url; a.target = '_blank'; a.rel = 'noopener';
+                    a.innerHTML = '<span style="font-size:12px;">' + b.ico + '</span><span>' + b.txt + '</span>';
+                    a.style.cssText = 'flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#f5f5f7;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s ease,color .15s ease;';
+                    a.addEventListener('mouseenter', function() { a.style.background = '#0a84ff'; a.style.color = '#ffffff'; });
+                    a.addEventListener('mouseleave', function() { a.style.background = 'rgba(255,255,255,0.08)'; a.style.color = '#f5f5f7'; });
+                    btnRow.appendChild(a);
+                });
+                av.appendChild(btnRow);
+                prodPanel.appendChild(av);
+            }
+
             whBlock.appendChild(prodPanel);
             contentWrap.appendChild(whBlock);
 
@@ -1076,8 +1100,6 @@
             if(force===true||!existe||sig!==_lastDataSig){ _lastDataSig=sig; createBanner(); }
         }).finally(()=>{ _bannerBusy=false; });
     }
-
-    arStart();
 
     function waitForData(){
         let att=0;
@@ -1411,6 +1433,9 @@
             '.obpt-g{background:rgba(48,209,88,0.16);color:#30d158;} .obpt-y{background:rgba(255,159,10,0.16);color:#ff9f0a;}' +
             '.obpt-r{background:rgba(255,69,58,0.16);color:#ff453a;} .obpt-n{background:rgba(255,255,255,0.06);color:#8e8e93;}' +
             '.obpt-tg{color:#30d158;} .obpt-tr{color:#ff453a;} .obpt-tn{color:#8e8e93;}' +
+            '#ob-pt-panel td.obpt-dg{color:#30d158;font-weight:700;background:rgba(48,209,88,0.12);}' +
+            '#ob-pt-panel td.obpt-dr{color:#ff453a;font-weight:700;background:rgba(255,69,58,0.12);}' +
+            '#ob-pt-panel td.obpt-dn{color:#8e8e93;}' +
             '.obpt-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:6px 10px;}' +
             '.obpt-node{display:flex;align-items:center;gap:6px;color:#f5f5f7;font-weight:700;font-size:12.5px;margin:2px 0 5px;}' +
             '.obpt-node i{display:inline-block;width:3px;height:12px;border-radius:2px;}' +
@@ -1685,7 +1710,7 @@
                 const c = (pf && act !== null && act !== undefined) ? ptAvance(pf, act, tk, uph) : {};
                 if (pf) sinPlan = false;
                 const sem = ptSem(c.pctVsEsperado);
-                const dcls = c.delta === undefined || c.delta === null ? 'obpt-tn' : (c.delta >= 0 ? 'obpt-tg' : 'obpt-tr');
+                const dcls = (c.delta === undefined || c.delta === null || isNaN(c.delta)) ? 'obpt-dn' : (Math.round(c.delta) > 0 ? 'obpt-dg' : (Math.round(c.delta) < 0 ? 'obpt-dr' : 'obpt-dn'));
                 h += '<tr><td>' + f.label + '</td><td>' + (pf ? ptFmt(pf) : '\u2014') + '</td><td>' + ptFmt(c.esperado) + '</td><td>' + ptFmt(act) + '</td>' +
                      '<td class="' + dcls + '">' + ptFmtD(c.delta) + '</td>' +
                      '<td><span class="obpt-pill obpt-' + sem + '">' + (c.pct !== undefined && c.pct !== null ? c.pct.toFixed(1) + '%' : 'N/A') + '</span></td></tr>';
@@ -2221,6 +2246,8 @@
     } else {
         setTimeout(checkForUpdates, 2000);
     }
+    arStart();   // auto-refresh global (ya están declaradas todas las variables del panel)
+
     // Revisa GitHub cada 5 minutos (antes dependía de que el banner se redibujara)
     setInterval(() => {
         checkForUpdates();
