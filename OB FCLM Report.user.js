@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.7
-// @description  v3.7: Nuevo bloque RC Sort Support (TLC1) junto a RC Sort, sin plan, con liga a su Function Rollup
+// @version      3.8
+// @description  v3.8: Auto-refresh global cada 5 min (encender/apagar y minutos editables en ⚙️) con cuenta regresiva en la barra de título
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,7 +18,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.7';
+    const SCRIPT_VERSION = '3.8';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
 
@@ -823,6 +823,7 @@
                 ">Verificando…</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
+                <span id="fclm-ar-chip" style="font-size:10px;font-weight:600;padding:2px 10px;border-radius:980px;background:rgba(255,255,255,0.08);color:#8e8e93;cursor:pointer;white-space:nowrap;transition:background .15s ease;user-select:none;">\u21BB \u2026</span>
                 <span style="color:#8e8e93;font-size:10px;font-weight:500;">${dateStr} · ${timeStr}</span>
                 <div id="fclm-settings-btn" title="Configuración de JPH/UPH" style="${iconBtn}">\u2699\uFE0F</div>
                 <div id="fclm-min-btn" title="Minimizar" style="${iconBtn}font-size:14px;font-weight:600;line-height:1;">\u2212</div>
@@ -1007,6 +1008,13 @@
         document.body.style.paddingTop = (banner.offsetHeight + 4) + 'px';
 
 
+        const arChip = document.getElementById('fclm-ar-chip');
+        if (arChip) {
+            arChip.addEventListener('mouseenter', () => { arChip.style.background = 'rgba(10,132,255,0.35)'; });
+            arChip.addEventListener('mouseleave', () => { arChip.style.background = 'rgba(255,255,255,0.08)'; });
+            arChip.addEventListener('click', arToggle);
+            arUpdateLabel();
+        }
         ptSyncButtons();
         const ptp = document.getElementById('ob-pt-panel');
         if (ptp && ptView) ptPlace(ptp);
@@ -1020,6 +1028,44 @@
         document.querySelectorAll('table').forEach(t=>{ if(!t.closest('#fclm-banner,#ob-pt-panel,#fclm-settings-overlay,#fclm-plan-editor')) txt+=t.textContent.length+'|'+t.textContent.slice(0,400); });
         return txt;
     }
+    // ============= AUTO-REFRESH GLOBAL (banner + panel) =============
+    const AR_KEY = 'obfclm_autorefresh';           // { on: true|false, minutes: n }
+    const AR_DEFAULT = { on: true, minutes: 5 };
+    function arLoad() {
+        try {
+            const v = JSON.parse(localStorage.getItem(AR_KEY) || 'null');
+            const m = v && Number(v.minutes);
+            return { on: v ? v.on !== false : AR_DEFAULT.on, minutes: (m >= 1 && m <= 240) ? Math.round(m) : AR_DEFAULT.minutes };
+        } catch (e) { return { on: AR_DEFAULT.on, minutes: AR_DEFAULT.minutes }; }
+    }
+    function arSave(cfg) { try { localStorage.setItem(AR_KEY, JSON.stringify({ on: !!cfg.on, minutes: cfg.minutes })); } catch (e) {} }
+    let arTimer = null, arNext = 0, arTick = null;
+    function arFmt(sec) { const m = Math.floor(sec / 60), s2 = sec % 60; return m + ':' + String(s2).padStart(2, '0'); }
+    function arUpdateLabel() {
+        const el = document.getElementById('fclm-ar-chip'); if (!el) return;
+        const cfg = arLoad();
+        if (!cfg.on) { el.textContent = '\u23F8 Auto-refresh apagado'; el.style.color = '#8e8e93'; el.title = 'Clic para encender'; return; }
+        const left = Math.max(0, Math.round((arNext - Date.now()) / 1000));
+        el.textContent = '\u21BB ' + arFmt(left) + ' \u00B7 cada ' + cfg.minutes + ' min';
+        el.style.color = '#30d158'; el.title = 'Clic para apagar';
+    }
+    function arRunNow() {
+        initBanner();                                  // banner + productividad (solo se redibuja si cambian los datos)
+        if (typeof ptView !== 'undefined' && ptView && !ptEditing) ptRefresh();   // panel Avance/Performance si está abierto
+    }
+    function arStart() {
+        if (arTimer) { clearInterval(arTimer); arTimer = null; }
+        if (arTick) { clearInterval(arTick); arTick = null; }
+        const cfg = arLoad();
+        if (cfg.on) {
+            arNext = Date.now() + cfg.minutes * 60000;
+            arTimer = setInterval(function() { arNext = Date.now() + cfg.minutes * 60000; arRunNow(); }, cfg.minutes * 60000);
+        }
+        arTick = setInterval(arUpdateLabel, 1000);
+        arUpdateLabel();
+    }
+    function arToggle() { const c = arLoad(); c.on = !c.on; arSave(c); arStart(); }
+
     let _bannerBusy=false, _lastDataSig='';
     function initBanner(force){
         if(_bannerBusy)return;
@@ -1030,6 +1076,8 @@
             if(force===true||!existe||sig!==_lastDataSig){ _lastDataSig=sig; createBanner(); }
         }).finally(()=>{ _bannerBusy=false; });
     }
+
+    arStart();
 
     function waitForData(){
         let att=0;
@@ -1551,11 +1599,7 @@
         setTimeout(function() { if (!ptView) p.style.display = 'none'; }, 270);
     }
     function ptToggle(view) { if (ptView === view) ptClose(); else ptOpen(view); }
-    function ptStartTimer() {
-        if (ptTimer) clearInterval(ptTimer);
-        const min = Number(ptCargarConfig().refreshMinutes) || PT.defaultRefreshMin;
-        ptTimer = setInterval(function() { if (ptView) ptRefresh(); }, min * 60000);
-    }
+    function ptStartTimer() { /* el refresco lo maneja el auto-refresh global (arStart) */ }
     function ptSyncButtons() {
         ['avance', 'perf'].forEach(function(v) {
             const b = document.getElementById('obpt-btn-' + v);
@@ -1718,7 +1762,9 @@
         h += fila('Fin', '<input type="datetime-local" id="obpt-fin" value="' + (cfg.manualFin || '') + '" style="' + inp + '">');
         h += '</div></div>';
         h += sec('Auto-refresh y sem\u00E1foro');
-        h += fila('Actualizar cada', '<select id="obpt-refresh-min" style="' + inp + '">' + PT.refreshIntervals.map(function(m) { return '<option value="' + m + '"' + (Number(cfg.refreshMinutes) === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select>');
+        const ar = arLoad();
+        h += fila('Auto-refresh (todo el tamper)', '<input type="checkbox" id="obpt-ar-on" ' + (ar.on ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#0a84ff;cursor:pointer;">');
+        h += fila('Actualizar cada (minutos)', '<span style="display:flex;align-items:center;gap:6px;"><input type="number" id="obpt-ar-min" min="1" max="240" step="1" value="' + ar.minutes + '" style="width:70px;' + inp + '"><span style="color:#8e8e93;font-size:10px;">min</span></span>');
         h += fila('<span style="color:#30d158;">\u25CF</span> Verde \u2265 (% del esperado)', '<input type="number" id="obpt-verde" min="1" max="200" value="' + PT.semaforo.verde + '" style="width:70px;' + inp + '">');
         h += fila('<span style="color:#ff9f0a;">\u25CF</span> Amarillo \u2265 (% del esperado)', '<input type="number" id="obpt-amarillo" min="1" max="200" value="' + PT.semaforo.amarillo + '" style="width:70px;' + inp + '">');
         h += '</div>';
@@ -1755,7 +1801,7 @@
             });
         });
         ptSave(PT_KEY_CFG, {
-            refreshMinutes: parseInt(ov.querySelector('#obpt-refresh-min').value, 10) || PT.defaultRefreshMin,
+            refreshMinutes: parseInt(ov.querySelector('#obpt-ar-min').value, 10) || AR_DEFAULT.minutes,
             breaks: br,
             turnoManual: !ov.querySelector('#obpt-auto').checked,
             manualTurnoTipo: ov.querySelector('#obpt-tipo').value,
@@ -1764,8 +1810,11 @@
             semaforoVerde: parseInt(ov.querySelector('#obpt-verde').value, 10) || 95,
             semaforoAmarillo: parseInt(ov.querySelector('#obpt-amarillo').value, 10) || 85
         });
+        const arMin = parseInt(ov.querySelector('#obpt-ar-min').value, 10);
+        arSave({ on: ov.querySelector('#obpt-ar-on').checked, minutes: (arMin >= 1 && arMin <= 240) ? arMin : AR_DEFAULT.minutes });
+        arStart();
         ptCargarConfig();
-        if (ptView) { ptStartTimer(); if (!ptEditing) ptRefresh(); }
+        if (ptView && !ptEditing) ptRefresh();
     }
 
 
