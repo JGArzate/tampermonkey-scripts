@@ -2,8 +2,8 @@
 // ==UserScript==
 // @name         OB FCLM Report
 // @namespace    http://tampermonkey.net/
-// @version      3.6
-// @description  v3.6: Performance rediseñado: bloques grandes INBOUND y OUTBOUND con separación visual, resumen por color y barras de % plan
+// @version      3.7
+// @description  v3.7: Nuevo bloque RC Sort Support (TLC1) junto a RC Sort, sin plan, con liga a su Function Rollup
 // @author       Jorge Gomez (Jrgmz)
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=QYY7*
 // @match        https://fclm-portal.amazon.com/reports/processPathRollup*warehouseId=TLC1*
@@ -18,14 +18,17 @@
 (function() {
     'use strict';
 
-    const SCRIPT_VERSION = '3.6';
+    const SCRIPT_VERSION = '3.7';
 
     const CURRENT_WH = new URLSearchParams(window.location.search).get('warehouseId') || '';
+
+    // Procesos de apoyo que no tienen plan en FCLM: se muestran en gris, solo con Vol, Rate y Hrs
+    const NO_PLAN_PROCESSES = ['RC Sort Support'];
 
     const TLC1_CONFIG = {
         id: 'TLC1', color: '#0073bb',
         sections: [
-            { name: 'OUTBOUND', processes: ['Manual Sort -Total','TO Palletize','TO RWC','Transfer Out - Total'] },
+            { name: 'OUTBOUND', processes: ['Manual Sort -Total','RC Sort Support','TO Palletize','TO RWC','Transfer Out - Total'] },
             { name: 'OUTBOUND2', processes: ['TO Lead/PA','TO Problem Solve','Transfer Out Support','Transfer Out Dock'] }
         ],
         hiddenProcesses: ['DA Bldg to Bldg Transfer TOTAL','Pallet Receive'],
@@ -47,6 +50,7 @@
         deltaHrsMap: { 'DA': 'DA Bldg to Bldg Transfer TOTAL' },
         processLinks: {
             'Manual Sort -Total': '01785143512767',
+            'RC Sort Support': '01785143618796',
             'TO Palletize': '01785143645486',
             'TO RWC': '01785143680335',
             'Transfer Out Dock': '01003022',
@@ -236,7 +240,9 @@
         if(nums.length>=6){volume=nums[0];actualRate=nums[2];planRate=nums[3];deltaToPlanHrs=nums[5];}
         else if(nums.length>=5){volume=nums[0];actualRate=nums[2];planRate=nums[3];deltaToPlanHrs=nums[4];}
         else if(nums.length>=4){volume=nums[0];actualRate=nums[2];planRate=nums[3];}
-        if(actualRate!==null||percentToPlan!==null) return {name:processName,volume,actualRate,planRate,percentToPlan,deltaToPlanHrs};
+        let hoursUsed=null;
+        if(NO_PLAN_PROCESSES.includes(processName) && nums.length>=3){ volume=nums[0]; hoursUsed=nums[1]; actualRate=nums[2]; planRate=null; percentToPlan=null; deltaToPlanHrs=null; }
+        if(actualRate!==null||percentToPlan!==null) return {name:processName,volume,actualRate,planRate,percentToPlan,deltaToPlanHrs,hoursUsed};
         return null;
     }
 
@@ -517,7 +523,8 @@
         const hasDenOnly = m && m.densityOnly === true;
 
         if (m) {
-            const st = getStatus(m.percentToPlan, m.actualRate, m.planRate);
+            const noPlan = NO_PLAN_PROCESSES.includes(pn);
+            const st = noPlan ? 'na' : getStatus(m.percentToPlan, m.actualRate, m.planRate);
             const th = T[st];
             const pctVal = m.percentToPlan != null ? Math.min(m.percentToPlan, 150) : 0;
             const barW = Math.min((pctVal / 150) * 100, 100).toFixed(1);
@@ -574,7 +581,7 @@
                         <span style="width:6px;height:6px;border-radius:50%;background:${th.border};flex-shrink:0;"></span>
                         <span style="color:#f5f5f7;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${dn}${linkBtn}</span>
                     </span>
-                    <span style="color:${th.accent};font-weight:700;font-size:13px;white-space:nowrap;">${fmtPct(m.percentToPlan)}</span>
+                    <span style="color:${th.accent};font-weight:700;font-size:13px;white-space:nowrap;">${noPlan ? 'Sin plan' : fmtPct(m.percentToPlan)}</span>
                 </div>
                 <div style="height:2px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;">
                     <div style="height:100%;width:${barW}%;background:${th.border};border-radius:2px;transition:width .4s ease;"></div>
@@ -582,14 +589,14 @@
                 <div style="display:flex;justify-content:space-around;align-items:flex-start;gap:8px;text-align:center;">
                     ${volHTML}
                     <div style="text-align:center;min-width:0;">
-                        <div style="${lbl}">Rate / Plan</div>
+                        <div style="${lbl}">${noPlan ? 'Rate' : 'Rate / Plan'}</div>
                         <div style="font-size:12px;white-space:nowrap;text-align:center;">
-                            <span style="color:${th.accent};font-weight:600;">${fmtRound(m.actualRate)}</span><span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">${fmtRound(m.planRate)}</span>
+                            <span style="color:${noPlan ? '#f5f5f7' : th.accent};font-weight:600;">${fmtRound(m.actualRate)}</span>${noPlan ? '' : '<span style="color:#636366;"> / </span><span style="color:#aeaeb2;font-weight:500;">' + fmtRound(m.planRate) + '</span>'}
                         </div>
                     </div>
                     <div style="text-align:center;min-width:0;">
-                        <div style="${lbl}">\u0394 Hrs</div>
-                        <div style="color:${th.accent};font-weight:600;font-size:12px;white-space:nowrap;text-align:center;">${fmtDelta(m.deltaToPlanHrs)}</div>
+                        <div style="${lbl}">${noPlan ? 'Hrs' : '\u0394 Hrs'}</div>
+                        <div style="color:${noPlan ? '#f5f5f7' : th.accent};font-weight:600;font-size:12px;white-space:nowrap;text-align:center;">${noPlan ? fmtRound(m.hoursUsed) : fmtDelta(m.deltaToPlanHrs)}</div>
                     </div>
                     ${jphBlock}
                 </div>
